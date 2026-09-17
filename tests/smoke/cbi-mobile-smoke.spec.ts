@@ -28,11 +28,16 @@ test.describe(
       test(
         `${site.name} dynamic mobile purchase flow`,
         async () => {
-        test.setTimeout(300000);
+          test.setTimeout(300000);
+
           console.log(
             `\n===== ${site.name} =====`
           );
 
+          /*
+           * Connect Playwright to the Chrome instance
+           * running on the real Android device through CDP.
+           */
           const browser =
             await chromium.connectOverCDP(
               'http://127.0.0.1:9222',
@@ -60,6 +65,9 @@ test.describe(
               ? pages[0]
               : await context.newPage();
 
+          /*
+           * Page Objects
+           */
           const homePage =
             new HomePage(page);
 
@@ -75,9 +83,19 @@ test.describe(
           const checkoutPage =
             new CheckoutPage(page);
 
+          /*
+           * Runtime data.
+           *
+           * Product name, product URL and search term
+           * are discovered dynamically.
+           */
           let productName = '';
           let productUrl = '';
 
+          /*
+           * SM-001
+           * Open brand website.
+           */
           await test.step(
             `SM-001 Open ${site.name}`,
             async () => {
@@ -106,6 +124,10 @@ test.describe(
             }
           );
 
+          /*
+           * SM-002
+           * Verify reusable global elements.
+           */
           await test.step(
             `SM-002 Verify ${site.name} global elements`,
             async () => {
@@ -126,9 +148,21 @@ test.describe(
                   .locator('footer')
                   .first()
               ).toBeVisible();
+
+              console.log(
+                `${site.name} global elements verified`
+              );
             }
           );
 
+          /*
+           * SM-003
+           *
+           * Discover possible search terms from
+           * the site's own visible navigation.
+           *
+           * No hardcoded product name or search term.
+           */
           await test.step(
             `SM-003 Dynamically search ${site.name}`,
             async () => {
@@ -150,6 +184,10 @@ test.describe(
               const discoveredTerms:
                 string[] = [];
 
+              /*
+               * Prevent utility/navigation controls
+               * from becoming search terms.
+               */
               const invalidTerms =
                 /logo|frontgate|ballard|garnet hill|grandin road|account|cart|login|sign in|sign up|menu|home|shop now|search|new$|sale$|learn|more|discover|customer service|credit card|privacy|order status/i;
 
@@ -161,20 +199,23 @@ test.describe(
                 const link =
                   navLinks.nth(i);
 
-                if (
-                  !(await link
+                const visible =
+                  await link
                     .isVisible()
                     .catch(
                       () => false
-                    ))
-                ) {
+                    );
+
+                if (!visible) {
                   continue;
                 }
 
                 const text = (
                   await link
                     .innerText()
-                    .catch(() => '')
+                    .catch(
+                      () => ''
+                    )
                 )
                   .replace(
                     /\s+/g,
@@ -226,13 +267,14 @@ test.describe(
                   continue;
                 }
 
-                if (
-                  !discoveredTerms.some(
+                const duplicate =
+                  discoveredTerms.some(
                     (term) =>
                       term.toLowerCase() ===
                       text.toLowerCase()
-                  )
-                ) {
+                  );
+
+                if (!duplicate) {
                   discoveredTerms.push(
                     text
                   );
@@ -253,6 +295,10 @@ test.describe(
                 );
               }
 
+              /*
+               * Limit retries so a broken search
+               * does not create an endless test.
+               */
               const termsToTry =
                 discoveredTerms.slice(
                   0,
@@ -272,6 +318,10 @@ test.describe(
               let successfulSearchTerm =
                 '';
 
+              /*
+               * Try discovered search terms until
+               * a real product link is found.
+               */
               for (
                 let attempt = 0;
                 attempt <
@@ -334,30 +384,41 @@ test.describe(
                   page.getByRole(
                     'heading',
                     {
-                      name: /search results/i,
+                      name:
+                        /search results/i,
                     }
                   );
 
-                if (
+                const headingVisible =
                   await searchHeading
                     .first()
                     .isVisible()
                     .catch(
                       () => false
-                    )
+                    );
+
+                if (
+                  headingVisible
                 ) {
-                  console.log(
-                    `Search heading: ${(
+                  const heading =
+                    (
                       await searchHeading
                         .first()
                         .innerText()
                         .catch(
                           () => ''
                         )
-                    ).trim()}`
+                    ).trim();
+
+                  console.log(
+                    `Search heading: ${heading}`
                   );
                 }
 
+                /*
+                 * Product links generally contain
+                 * a uniqueId or numeric product ID.
+                 */
                 const productLinks =
                   page.locator(
                     [
@@ -387,14 +448,14 @@ test.describe(
                       i
                     );
 
-                  if (
-                    !(await link
+                  const visible =
+                    await link
                       .isVisible()
                       .catch(
-                        () =>
-                          false
-                      ))
-                  ) {
+                        () => false
+                      );
+
+                  if (!visible) {
                     continue;
                   }
 
@@ -420,6 +481,9 @@ test.describe(
                     )
                     .trim();
 
+                  /*
+                   * Reject utility URLs.
+                   */
                   if (
                     href === '#' ||
                     href === '/' ||
@@ -477,6 +541,9 @@ test.describe(
                   break;
                 }
 
+                /*
+                 * Product found.
+                 */
                 if (
                   selectedProductHref
                 ) {
@@ -487,6 +554,10 @@ test.describe(
                   `No product found for "${searchTerm}". Trying next candidate...`
                 );
 
+                /*
+                 * Reset to home before another
+                 * dynamic search attempt.
+                 */
                 await page.goto(
                   site.url,
                   {
@@ -520,6 +591,10 @@ test.describe(
                 }"`
               );
 
+              /*
+               * Convert relative PDP URL into
+               * an absolute URL.
+               */
               const productDestination =
                 new URL(
                   selectedProductHref,
@@ -549,6 +624,10 @@ test.describe(
             }
           );
 
+          /*
+           * SM-004
+           * Verify product detail page.
+           */
           await test.step(
             `SM-004 Verify ${site.name} PDP`,
             async () => {
@@ -574,6 +653,10 @@ test.describe(
             }
           );
 
+          /*
+           * SM-005
+           * Dynamically handle required PDP options.
+           */
           await test.step(
             `SM-005 Select ${site.name} options dynamically`,
             async () => {
@@ -582,9 +665,17 @@ test.describe(
               );
 
               await productPage.selectAvailableOptions();
+
+              console.log(
+                'PDP option selection completed'
+              );
             }
           );
 
+          /*
+           * SM-006
+           * Add product to cart.
+           */
           await test.step(
             `SM-006 Add ${site.name} product to cart`,
             async () => {
@@ -593,9 +684,17 @@ test.describe(
               );
 
               await productPage.addToCart();
+
+              console.log(
+                `${site.name} product added to cart`
+              );
             }
           );
 
+          /*
+           * SM-007
+           * Verify shopping cart.
+           */
           await test.step(
             `SM-007 Verify ${site.name} cart`,
             async () => {
@@ -626,9 +725,17 @@ test.describe(
               console.log(
                 `Original PDP URL: ${productUrl}`
               );
+
+              console.log(
+                `Product under test: ${productName}`
+              );
             }
           );
 
+          /*
+           * SM-008
+           * Enter checkout.
+           */
           await test.step(
             `SM-008 Proceed through ${site.name} checkout`,
             async () => {
@@ -655,48 +762,67 @@ test.describe(
               );
 
               await checkoutPage.verifyCheckoutLoaded();
+
+              console.log(
+                `${site.name} checkout loaded`
+              );
             }
           );
 
+          /*
+           * SM-009
+           * Guest checkout + shipping +
+           * delivery method.
+           */
           await test.step(
-  `SM-009 Complete ${site.name} shipping and reach delivery`,
-  async () => {
-    console.log(
-      'Starting shipping checkout flow'
-    );
+            `SM-009 Complete ${site.name} shipping and reach delivery`,
+            async () => {
+              console.log(
+                'Starting shipping checkout flow'
+              );
 
-    await checkoutPage.continueAsGuestIfNeeded();
+              await checkoutPage.continueAsGuestIfNeeded();
 
-    await checkoutPage.fillShippingDetails(
-      testData.shipping
-    );
+              await checkoutPage.fillShippingDetails(
+                testData.shipping
+              );
 
-    await checkoutPage.continueToDeliveryMethod();
+              await checkoutPage.continueToDeliveryMethod();
 
-    await checkoutPage.verifyDeliveryMethodLoaded();
+              await checkoutPage.verifyDeliveryMethodLoaded();
 
-    await checkoutPage.selectDeliveryMethodIfNeeded();
+              await checkoutPage.selectDeliveryMethodIfNeeded();
 
-    await checkoutPage.printDeliveryControls();
+              await checkoutPage.printDeliveryControls();
 
-    console.log(
-      'Shipping → Delivery Method completed successfully'
-    );
-  }
-);
+              console.log(
+                `${site.name}: Shipping → Delivery Method completed successfully`
+              );
+            }
+          );
 
+          /*
+           * SM-010
+           *
+           * Stable delivery checkpoint.
+           *
+           * IMPORTANT:
+           * This is generic for every configured CBI site.
+           */
           await test.step(
-  'SM-010 Delivery checkpoint',
-  async () => {
-    console.log(
-      'Frontgate checkout successfully reached Delivery Method'
-    );
+            `SM-010 ${site.name} delivery checkpoint`,
+            async () => {
+              await checkoutPage.verifyDeliveryMethodLoaded();
 
-    console.log(
-      'Payment automation will be handled as the next isolated step'
-    );
-  }
-);
+              console.log(
+                `${site.name} checkout successfully reached Delivery Method`
+              );
+
+              console.log(
+                `${site.name} payment automation is available as the next checkout step`
+              );
+            }
+          );
 
           console.log(
             `===== ${site.name} smoke flow completed =====`
