@@ -2,191 +2,683 @@
 
 ## Application Overview
 
-A real-Android smoke plan for the CBI mobile web storefronts Frontgate, Ballard Designs, Garnet Hill, and Grandin Road. The suite uses seed.spec.ts to connect to Android Chrome and opens each site's certification URL with the configured bypass token. Tests are parameterized by site and must begin from a fresh browser/cart state. Product names, search terms, and option values are discovered at runtime from visible site content; no product or variant is hardcoded. Checkout and order submission use only approved certification/test data, and final submission is skipped when an approved non-production payment method or explicit QA authorization is unavailable.
+This smoke test plan validates the core mobile shopping experience across the following CBI storefronts:
 
-## Test Scenarios
+- Frontgate
+- Ballard Designs
+- Garnet Hill
+- Grandin Road
 
-### 1. CBI Mobile Cross-Site Smoke
+The automation runs against **real Android Chrome** using:
 
-**Seed:** `seed.spec.ts`
+- Playwright
+- Android Debug Bridge (ADB)
+- Chrome DevTools Protocol (CDP)
+- A shared Android fixture:
+  `tests/fixtures/android.fixture.ts`
 
-#### 1.1. SM-001 Open each CBI site on real Android
+The framework uses:
 
-**File:** `specs/cbi-mobile-smoke-test-plan.md`
+- Shared Page Objects
+- Area-based test organization
+- Reusable helpers
+- Dynamic product discovery
+- Smoke / Regression tags
+- A dedicated End-to-End purchase journey
 
-**Steps:**
-  1. Run the test with seed.spec.ts and connect to Chrome on the real Android device through CDP.
-    - expect: A real Android Chrome context is available.
-    - expect: The test does not silently fall back to a desktop or emulated browser.
-  2. For each configured site in config/sites.ts (Frontgate, Ballard Designs, Garnet Hill, and Grandin Road), navigate to its configured certification URL and wait for DOM content to load.
-    - expect: The selected site resolves and loads without a network or certificate error.
-    - expect: The site remains within the expected site domain and certification environment.
-  3. Wait for the mobile shell to settle, dismiss only expected site-provided cookie, privacy, location, or promotional dialogs, and record the page title and final URL.
-    - expect: The page title is non-empty and the document body is visible.
-    - expect: Any dismissed dialog is a normal site dialog; unexpected errors, blank content, or redirects are failures.
+The same reusable automation logic is shared across all configured CBI brands with minimal site-specific hardcoding.
 
-#### 1.2. SM-002 Verify shared global mobile elements
+---
 
-**File:** `specs/cbi-mobile-smoke-test-plan.md`
+# Smoke Strategy
 
-**Steps:**
-  1. Starting from the freshly opened site, inspect the visible mobile header and use accessible roles, labels, landmarks, or stable site attributes to identify the header controls.
-    - expect: A visible brand/logo or home link is present.
-    - expect: A mobile menu/navigation control is present or the primary navigation is accessible.
-    - expect: Search access is visible and actionable.
-    - expect: Account/sign-in access is visible or available from the mobile menu.
-    - expect: Cart/bag access is visible and exposes an empty or zero-item state for the fresh session.
-  2. Open and close the mobile navigation if present, then open and close search without submitting a query.
-    - expect: Navigation and search overlays open and close without layout breakage.
-    - expect: Focus remains usable on the Android viewport and no control is obscured by the overlay.
-  3. Scroll to the bottom of the home page or use the footer landmark, then inspect footer links and return to the top.
-    - expect: A visible footer is rendered with usable links or accordions.
-    - expect: The page remains responsive and no horizontal overflow or overlapping global element is observed.
+Smoke coverage is selected from the existing area-based test suites using the:
 
-#### 1.3. SM-003 Discover and execute a dynamic product search
+```text
+@smoke
 
-**File:** `specs/cbi-mobile-smoke-test-plan.md`
+tag.
 
-**Steps:**
-  1. Open the site's search control and inspect the input, autocomplete suggestions, recently viewed terms, category links, or other runtime-provided discovery sources.
-    - expect: A usable search input is visible and focused or can be focused.
-    - expect: The test can obtain a non-empty search term from current site content without hardcoding a product name.
-  2. Choose the first usable runtime-discovered term that is not a placeholder, or derive a term from a visible category/navigation label or an eligible product listing when autocomplete is unavailable. Use a configuration fallback only if the site provides no discoverable term.
-    - expect: The selected term is recorded for diagnostics.
-    - expect: The term is not an empty string, placeholder text, or a hardcoded product-specific value.
-  3. Submit the discovered term using the search control and wait for the results page or results region to become ready.
-    - expect: The URL, heading, or results state reflects a submitted search.
-    - expect: The results page contains a visible results region, product cards, or an explicit no-results state that is handled as a test failure for smoke coverage.
-  4. Inspect the result cards and choose the first visible, enabled product link with a usable product-detail URL; ignore sponsored, placeholder, duplicate, or unavailable tiles.
-    - expect: At least one eligible product can be selected without relying on a product name.
-    - expect: The selected product link is actionable on the Android viewport.
+Smoke tests are not duplicated into a separate smoke folder.
 
-#### 1.4. SM-004 Open and verify a dynamic PDP
+The same scenario can belong to both Smoke and Regression suites through tags such as:
 
-**File:** `specs/cbi-mobile-smoke-test-plan.md`
+@smoke
+@regression
 
-**Steps:**
-  1. Open the selected product from the search results and wait for the product detail content to load.
-    - expect: The URL or page content identifies a product detail page.
-    - expect: The PDP body and primary product content are visible.
-  2. Capture the visible product title/name, canonical or product URL, and displayed price text before interacting with options.
-    - expect: The product name is non-empty and stored for later cart and checkout comparisons.
-    - expect: A price or price-state is visible, or the page clearly identifies a valid configured price state.
-    - expect: The captured product identity is not replaced by a hardcoded expected value.
-  3. Verify the PDP's core content using semantic locators and stable attributes: primary image/gallery, product title, price, availability or fulfillment status, quantity control if present, product description/details, and Add to Cart/Add to Bag control.
-    - expect: The primary image or gallery is visible and loaded or has an intentional accessible image state.
-    - expect: The title and price are visible and readable.
-    - expect: Availability and fulfillment messaging is present when supplied by the site.
-    - expect: The primary purchase control is visible, enabled when the product is purchasable, and not hidden behind an unresolved modal.
-  4. Inspect breadcrumbs, ratings/reviews, promotional messaging, delivery estimates, and accordion content when present, without making optional content a cross-site hard requirement.
-    - expect: Optional modules do not block the core purchase flow.
-    - expect: Any displayed product information is internally consistent with the selected PDP.
+This keeps the test suite maintainable and avoids duplicated business flows.
 
-#### 1.5. SM-005 Dynamically select required product options or variants
+The main End-to-End purchase journey is implemented separately in:
 
-**File:** `specs/cbi-mobile-smoke-test-plan.md`
+tests/journeys/purchase-flow.e2e.spec.ts
 
-**Steps:**
-  1. Enumerate visible required selectors, swatches, radio groups, buttons, and other variant controls on the PDP; distinguish required product options from quantity, personalization, financing, and unrelated controls.
-    - expect: All visible required option groups are identified from labels, required attributes, validation messages, or purchase-control state.
-    - expect: No option label or value is assumed in advance.
-  2. For each required option group, choose the first visible, enabled, in-stock value that is not a placeholder such as Select or Choose; for selects, read option attributes and labels before selecting; for swatches/buttons, use accessible labels or data attributes.
-    - expect: Only enabled and purchasable options are selected.
-    - expect: The selected label/value for every group is captured for later assertions.
-    - expect: Dependent option groups update without leaving the PDP or producing an error.
-  3. If selecting one option changes the available choices, re-enumerate the dependent group and repeat until every required group is complete.
-    - expect: The Add to Cart control becomes enabled or the page reports a valid purchasable selection.
-    - expect: Disabled, sold-out, or placeholder values are not selected.
-  4. If the PDP has no required variants, record that no required option groups were present and continue with the default purchasable configuration.
-    - expect: The test does not fail merely because a product has no variants.
-    - expect: The selected configuration remains identifiable as the product's default configuration.
+Dynamic product discovery logic is isolated in:
 
-#### 1.6. SM-006 Add the selected product to cart
+tests/helpers/product-discovery.ts
+Execution Environment
 
-**File:** `specs/cbi-mobile-smoke-test-plan.md`
+The smoke suite is designed for a real Android device.
 
-**Steps:**
-  1. Record the selected quantity, defaulting to the displayed minimum quantity when the control exists, and retain the captured product name, price, and option labels.
-    - expect: The quantity is valid, visible, and within the site's allowed range.
-    - expect: The product identity and selected configuration are available for downstream assertions.
-  2. Activate Add to Cart/Add to Bag and wait for the cart drawer, confirmation message, or navigation response.
-    - expect: A success confirmation or cart update is displayed.
-    - expect: The selected product is not reported as unavailable or invalid.
-  3. If the site opens a mini-cart, inspect it and use the provided control to continue to the full cart; otherwise open the global cart control.
-    - expect: The cart can be opened from the success state or global navigation.
-    - expect: The flow does not add a second item through repeated clicks.
+The runtime connection flow is:
 
-#### 1.7. SM-007 Verify cart contents and selected product information
+Playwright
+    ↓
+Chrome DevTools Protocol
+    ↓
+localhost:9222
+    ↓
+ADB Port Forwarding
+    ↓
+Chrome on Android
 
-**File:** `specs/cbi-mobile-smoke-test-plan.md`
+Before executing runtime tests:
 
-**Steps:**
-  1. Wait for the full cart page or cart region and locate the item using the captured product identity, product URL, or item data attributes rather than a hardcoded name.
-    - expect: The cart is loaded and contains at least one line item.
-    - expect: The selected product is present and uniquely identifiable.
-  2. Compare the cart line item's product name and link with the PDP capture.
-    - expect: The cart product name and product destination match the selected PDP.
-    - expect: The cart item is not a different product selected by a stale or duplicate click.
-  3. Compare displayed price, quantity, selected variant/option labels, and availability messaging between PDP and cart wherever each value is shown.
-    - expect: Displayed selected option labels match the captured PDP selection.
-    - expect: The cart quantity matches the requested quantity or the site clearly applies a documented minimum/default.
-    - expect: The cart price is present and consistent with the selected configuration, allowing only an explicitly displayed promotion or tax/shipping distinction.
-  4. Verify the cart subtotal/total region, remove/update controls, and Checkout control.
-    - expect: A subtotal or total is visible.
-    - expect: Cart controls are usable without changing the item unexpectedly.
-    - expect: Checkout is visible and enabled for the valid cart.
+adb devices
 
-#### 1.8. SM-008 Proceed through checkout and validate order summary
+The connected Android device should appear with:
 
-**File:** `specs/cbi-mobile-smoke-test-plan.md`
+device
 
-**Steps:**
-  1. Select Checkout from the cart and wait for the checkout shell to load.
-    - expect: Checkout loads in the same tab or an expected checkout tab.
-    - expect: The current checkout step and order summary are visible or accessible.
-  2. Capture the checkout order-summary product identity, selected options, quantity, item price, subtotal, and any displayed shipping/tax/discount totals.
-    - expect: The checkout summary contains the same product and configuration as the cart.
-    - expect: The quantity and item price remain consistent with the cart, accounting for clearly labeled promotions.
-  3. Verify the shipping/contact step's required fields, validation affordances, and Continue/Next control without entering data yet.
-    - expect: Required shipping and contact fields are visible or can be opened.
-    - expect: The next-step control is present and the checkout identifies missing required data when invoked.
+Reset forwarding:
 
-#### 1.9. SM-009 Enter safe QA shipping data and validate shipping step
+adb forward --remove-all
 
-**File:** `specs/cbi-mobile-smoke-test-plan.md`
+Restart Chrome:
 
-**Steps:**
-  1. Populate only approved non-production QA shipping/contact data from the repository's test-data configuration or the current run's injected QA environment variables. Do not use a real person's data.
-    - expect: First name, last name, street, city, region/state, postal code, phone, and email are accepted in the site's corresponding fields.
-    - expect: The entered values remain within the certification environment and are not exposed in test output beyond masked or approved diagnostics.
-  2. Submit or continue from the shipping step and wait for validation or the next checkout step.
-    - expect: Valid QA data advances the flow without client-side validation errors.
-    - expect: If the site requires address validation, a suggested address can be reviewed and the QA address is intentionally selected or confirmed.
-  3. Re-check the order summary after shipping is accepted.
-    - expect: The same dynamic product name, selected options, quantity, and item price remain present.
-    - expect: Shipping cost, tax, discounts, and order total are recalculated and visibly labeled.
-    - expect: No unexpected product, option, or quantity change occurs.
+adb shell am force-stop com.android.chrome
 
-#### 1.10. SM-010 Validate payment step and complete the order with approved QA data
+Open a configured CBI certification URL:
 
-**File:** `specs/cbi-mobile-smoke-test-plan.md`
+adb shell am start \
+  -a android.intent.action.VIEW \
+  -d "https://certwcs.frontgate.com/" \
+  com.android.chrome
 
-**Steps:**
-  1. Continue to the payment step using the site's current checkout control and wait for payment fields or the approved payment-provider component to load.
-    - expect: The payment step is reachable and its heading or payment region is visible.
-    - expect: Required payment controls are rendered without a blank iframe, script error, or unexpected authentication failure.
-  2. Before entering payment data, verify that the current environment is a certification/test environment and that approved QA payment data is available through the team's secure test-data mechanism.
-    - expect: The test is allowed to continue only with non-production payment data and explicit QA authorization.
-    - expect: The test stops before submission if the environment or payment data cannot be verified; no live card or personal payment information is used.
-  3. Enter the approved QA payment data through the provider's supported fields, complete any required non-production billing details or test challenge, and review the final order summary.
-    - expect: Payment validation succeeds using QA data.
-    - expect: The final summary still matches the captured product, selected options, quantity, price, and shipping details.
-    - expect: The final total is present and consistent with the checkout calculations.
-  4. Submit the order once using the enabled Place Order/Complete Order control and wait for the confirmation page or confirmation region.
-    - expect: The order is created only in the approved certification environment.
-    - expect: A confirmation state is displayed with an order number or equivalent confirmation identifier.
-    - expect: The confirmation retains or exposes the expected product/order summary information.
-    - expect: Repeated submission is prevented or not attempted.
-  5. If approved QA payment data or explicit authorization is unavailable, stop before Place Order and mark the scenario blocked at the payment gate.
-    - expect: No production order is submitted.
-    - expect: The report clearly identifies the missing safe-test prerequisite rather than treating an intentional stop as a product failure.
+Forward Chrome DevTools:
+
+adb forward tcp:9222 localabstract:chrome_devtools_remote
+
+Verify CDP:
+
+curl http://127.0.0.1:9222/json/version
+
+A successful response should contain information such as:
+
+Browser
+webSocketDebuggerUrl
+Test Scope
+
+The smoke suite focuses on the most important customer-facing paths:
+
+Global page shell
+Search
+Product discovery
+PDP
+Required product options
+Add To Cart
+Shopping Cart
+Checkout
+Shipping
+Delivery Method
+Payment checkpoint
+Core Account and Registration checks
+Critical mobile layout validation
+Test Scenarios
+1. Global Mobile Experience
+SM-GLOBAL-001 Open each configured CBI site
+
+Area:
+
+tests/areas/globals/
+
+Steps:
+
+Open the configured site URL on the connected Android Chrome session.
+Wait for DOM content to load.
+Verify the page body is visible.
+Verify the page is not blank or in an application error state.
+
+Expected Results:
+
+The configured certification site opens successfully.
+The page remains inside the expected brand environment.
+No unexpected blank page or fatal application error is displayed.
+The page renders successfully on the current Android viewport.
+SM-GLOBAL-002 Verify global mobile components
+
+Steps:
+
+Verify the mobile header is visible.
+Verify the brand logo is visible.
+Verify Search access is available.
+Verify Cart access is available.
+Verify Account access is available.
+Verify the mobile navigation control is available.
+Verify global layout remains usable.
+
+Expected Results:
+
+Header is rendered.
+Brand logo is visible.
+Search control is available.
+Cart control is available.
+Account control is available.
+Mobile navigation is available.
+Core controls are not substantially overlapping.
+No unexpected horizontal overflow is present.
+2. Search
+SM-SEARCH-001 Open Search
+
+Area:
+
+tests/areas/search/search.spec.ts
+
+Steps:
+
+Open the site's Search control.
+Verify a usable search field becomes available.
+Focus the field.
+
+Expected Results:
+
+Search UI opens successfully.
+Search input is visible and actionable.
+Mobile layout remains stable.
+SM-SEARCH-002 Discover a usable runtime search term
+
+The framework should avoid unnecessary hardcoded product names.
+
+Product discovery logic is handled by:
+
+tests/helpers/product-discovery.ts
+
+Steps:
+
+Inspect visible navigation and eligible site content.
+Collect usable candidate search terms.
+Ignore utility links and irrelevant text.
+Select a usable runtime search term.
+Record the selected search term for diagnostics.
+
+Expected Results:
+
+A non-empty runtime search term is selected.
+The term is based on current site content.
+Utility controls such as Account, Cart, Login, Privacy, and Customer Service are ignored.
+Product discovery does not depend on one fixed product.
+SM-SEARCH-003 Execute Search
+
+Steps:
+
+Fill the Search input with the selected runtime term.
+Submit using Enter or the site's search interaction.
+Wait for the Search results state.
+
+Expected Results:
+
+Search submission succeeds.
+Search results or a valid results state is displayed.
+The page remains responsive.
+At least one eligible product is discoverable for the End-to-End smoke journey.
+3. Product Detail Page
+SM-PDP-001 Open a dynamically discovered PDP
+
+Area:
+
+tests/areas/pdp/pdp.spec.ts
+
+Steps:
+
+Select an eligible product from runtime-discovered Search results.
+Open the product.
+Wait for the Product Detail Page to load.
+
+Expected Results:
+
+A valid PDP is displayed.
+Product title/name is available.
+Product page content is visible.
+Product URL is valid.
+The product identity can be captured for downstream validation.
+SM-PDP-002 Verify core product information
+
+Steps:
+
+Capture the product name.
+Verify product information.
+Verify price or valid price state.
+Verify product imagery where available.
+Verify Add To Cart availability for a purchasable product.
+
+Expected Results:
+
+Product name is non-empty.
+Product information is readable.
+Product price or price state is displayed.
+Product media does not prevent the flow.
+Add To Cart is available when the product is purchasable.
+SM-PDP-003 Select required product options dynamically
+
+Steps:
+
+Detect required product option groups.
+Identify enabled and purchasable values.
+Select the first valid option when required.
+Re-evaluate dependent options if the site updates available values.
+Continue until all required product selections are complete.
+
+Expected Results:
+
+Required options are handled dynamically.
+Disabled or sold-out values are not intentionally selected.
+No hardcoded color, size, or variant value is required.
+A product with no required options can continue using its valid default configuration.
+4. Add To Cart
+SM-CART-001 Add selected product to Cart
+
+Steps:
+
+Retain the PDP product name.
+Complete any required option selection.
+Activate Add To Cart.
+Wait for cart confirmation or cart state update.
+
+Expected Results:
+
+Product is added successfully.
+Cart state updates.
+The flow does not intentionally add duplicate items through repeated clicks.
+No product-unavailable error is returned for the selected configuration.
+SM-CART-002 Open and verify Cart
+
+Area:
+
+tests/areas/cart/cart.spec.ts
+
+Steps:
+
+Open the Cart.
+Verify the Cart page loads.
+Verify the Cart contains at least one item.
+Verify Cart item count is greater than zero.
+
+Expected Results:
+
+Cart opens successfully.
+Cart is not empty.
+At least one Cart item is present.
+Checkout control is available.
+SM-CART-003 Verify the same PDP product is present in Cart
+
+Steps:
+
+Use the captured PDP product name.
+Locate the corresponding product in the Cart.
+Verify that product is visible.
+
+Expected Results:
+
+The same product selected on PDP appears in Cart.
+The Cart does not contain only an unrelated stale product.
+Product identity remains consistent through the PDP → Cart transition.
+SM-CART-004 Verify critical Cart values
+
+Steps:
+
+Verify product price is visible.
+Verify quantity information or control where supported.
+Verify subtotal.
+Verify Checkout control.
+
+Expected Results:
+
+Product price is available.
+Quantity remains valid.
+Cart subtotal is displayed.
+Checkout can be initiated.
+5. Checkout
+SM-CHECKOUT-001 Proceed to Checkout
+
+Area:
+
+tests/areas/checkout/checkout.spec.ts
+
+Steps:
+
+Activate Checkout from Cart.
+Wait for checkout navigation.
+Verify Checkout loads.
+
+Expected Results:
+
+Checkout opens successfully.
+Checkout state is available.
+The page does not remain on a broken Cart state.
+SM-CHECKOUT-002 Continue as Guest when required
+
+Steps:
+
+Detect whether a Continue As Guest option is displayed.
+If displayed, activate it.
+Otherwise continue with the currently available Checkout state.
+
+Expected Results:
+
+Guest checkout can continue when required.
+Sites that already expose Shipping or a later state are handled without unnecessary failure.
+SM-CHECKOUT-003 Fill approved QA shipping information
+
+Reusable test data is stored in:
+
+config/test-data.ts
+
+Steps:
+
+Populate first name.
+Populate last name.
+Populate approved QA street address.
+Handle address autocomplete.
+Populate approved QA email.
+Populate approved QA phone.
+Verify required shipping state.
+
+Expected Results:
+
+Required Shipping fields accept the configured QA values.
+Address autocomplete can be handled.
+ZIP/postal data is populated or retained where supported.
+No real personal information is required.
+SM-CHECKOUT-004 Continue to Delivery Method
+
+Steps:
+
+Continue from Shipping.
+Handle Shipping Address Verification if displayed.
+Verify Delivery Method state becomes available.
+
+Expected Results:
+
+Checkout advances from Shipping.
+Address verification can be handled safely.
+Delivery Method section is visible.
+SM-CHECKOUT-005 Select Delivery Method
+
+Steps:
+
+Inspect available delivery choices.
+Detect whether a delivery choice is already selected.
+If none is selected and selectable options exist, choose a valid option.
+Verify a Delivery Method is selected when required.
+
+Expected Results:
+
+A valid Delivery Method is available.
+A required delivery choice can be selected.
+Disabled options are not intentionally selected.
+6. Payment Safety Checkpoint
+SM-CHECKOUT-006 Continue to Payment
+
+Steps:
+
+Continue from Delivery Method toward Payment.
+Use the currently available checkout control.
+Wait for Payment state.
+
+Expected Results:
+
+Payment state is reachable.
+Payment heading, Payment section, hosted fields, or equivalent Payment controls are displayed.
+The Checkout remains stable.
+SM-CHECKOUT-007 Verify Payment checkpoint safely
+
+Steps:
+
+Verify Payment step is visible.
+Verify Payment-related controls or Payment section are available.
+Verify the page does not display a fatal error.
+Verify the current URL is not an order confirmation URL.
+
+Expected Results:
+
+Payment checkpoint is reached successfully.
+Payment UI is available.
+No blank hosted payment state blocks the test where supported.
+No order is created.
+SM-CHECKOUT-008 Prevent final order submission
+
+The End-to-End smoke journey intentionally stops at Payment.
+
+The automation must not click controls matching actions such as:
+
+Place Order
+Submit Order
+Complete Purchase
+Complete Order
+Buy Now
+Purchase
+
+Expected Results:
+
+No final purchase action is triggered.
+The automation remains inside Checkout.
+No Order Confirmation page is reached.
+No Thank You page is reached.
+No real or certification order is intentionally submitted.
+End-to-End Smoke Journey
+
+The main End-to-End purchase flow is implemented in:
+
+tests/journeys/purchase-flow.e2e.spec.ts
+
+The flow is:
+
+Open Brand
+    ↓
+Verify Global Elements
+    ↓
+Discover Search Term
+    ↓
+Search
+    ↓
+Discover Product
+    ↓
+Open PDP
+    ↓
+Verify Product
+    ↓
+Select Required Options
+    ↓
+Add To Cart
+    ↓
+Open Cart
+    ↓
+Verify Same Product In Cart
+    ↓
+Proceed To Checkout
+    ↓
+Continue As Guest
+    ↓
+Fill Shipping Details
+    ↓
+Reach Delivery Method
+    ↓
+Select Delivery Method
+    ↓
+Continue To Payment
+    ↓
+Verify Payment Checkpoint
+    ↓
+STOP
+
+The flow intentionally stops before final order submission.
+
+Additional Smoke Areas
+
+Smoke tags are also applied to selected critical tests in other functional areas.
+
+Login
+
+Area:
+
+tests/areas/account/login.spec.ts
+
+Critical smoke coverage may include:
+
+Open My Account
+Login form visibility
+Password masking
+Forgot Password accessibility
+Login control visibility and accessibility
+Registration
+
+Area:
+
+tests/areas/account/registration.spec.ts
+
+Critical smoke coverage may include:
+
+Registration page loading
+Registration form visibility
+Empty form prevention
+Password masking
+Global Components
+
+Area:
+
+tests/areas/globals/header-footer.spec.ts
+
+Critical smoke coverage may include:
+
+Header
+Logo
+Search
+Cart
+Account
+Mobile menu
+Navigation safety
+Current Android viewport responsiveness
+Smoke Execution
+
+Run all Smoke-tagged tests:
+
+npm run test:smoke
+
+Equivalent to:
+
+playwright test --grep @smoke --workers=1
+
+Because the suite shares the same real Android Chrome environment, execution uses:
+
+workers=1
+Run the End-to-End Journey
+npm run test:e2e
+
+This executes:
+
+tests/journeys/purchase-flow.e2e.spec.ts
+Run One Brand
+
+Example:
+
+npm run test:frontgate
+
+Other configured brand commands:
+
+npm run test:ballard
+npm run test:garnet
+npm run test:grandin
+Static Validation
+
+Before runtime execution, validate TypeScript:
+
+npm run typecheck
+
+Verify test discovery:
+
+npm run test:list
+
+Current discovered suite:
+
+Total: 1296 tests in 10 files
+
+This represents Playwright test executions across the configured brands.
+
+It does not mean there are 1296 unique business scenarios.
+
+Many scenarios are parameterized and executed against multiple CBI sites.
+
+Pass Criteria
+
+The Smoke suite is considered successful when:
+
+The Android device is connected.
+Chrome CDP forwarding is active.
+The selected CBI certification sites load.
+Critical Smoke-tagged scenarios execute successfully.
+The dynamic purchase journey reaches the Payment checkpoint.
+The same selected product remains consistent from PDP through Cart.
+Shipping and Delivery states remain usable.
+No fatal application errors are displayed.
+No unintended final order submission occurs.
+Failure Criteria
+
+A Smoke scenario should fail when a critical flow cannot continue, including examples such as:
+
+Android Chrome cannot be reached through CDP.
+A configured site cannot load.
+Critical global navigation is missing.
+Search cannot be used.
+No eligible product can be discovered for the purchase journey.
+PDP cannot load.
+Required product options cannot be completed.
+Add To Cart fails.
+Cart does not contain the selected product.
+Checkout cannot load.
+Shipping cannot be completed with approved QA data.
+Delivery Method cannot be reached.
+Payment checkpoint cannot be reached.
+A fatal application error is displayed.
+
+Feature-specific optional behavior should only be skipped when the feature is genuinely not exposed by that brand.
+
+Failures must not be converted into skips merely to make the suite pass.
+
+Reporting
+
+Playwright reporting is configured in:
+
+playwright.config.ts
+
+Generated runtime output may include:
+
+playwright-report/
+test-results/
+
+These generated files should not be committed.
+
+Open the latest HTML report with:
+
+npm run report
+Current Validation Status
+
+The current framework has been statically validated using:
+
+npm run typecheck
+
+and:
+
+npm run test:list
+
+Current discovered test count:
+
+1296 tests in 10 files
+
+Full runtime validation requires:
+
+Connected Android device
+USB Debugging
+Android Chrome
+ADB forwarding
+Active CDP connection
+
+Static test discovery does not imply that all runtime scenarios have passed on all four brands.
