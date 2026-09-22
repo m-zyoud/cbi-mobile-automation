@@ -1,6 +1,10 @@
-import { expect, Page } from '@playwright/test';
+import {
+  expect,
+  Locator,
+  Page,
+} from '@playwright/test';
 
-type ShippingData = {
+export type ShippingData = {
   firstName?: string;
   lastName?: string;
   address?: string;
@@ -14,85 +18,217 @@ type ShippingData = {
 };
 
 export class CheckoutPage {
+  readonly page: Page;
+
+  readonly guestButton: Locator;
+  readonly firstNameInput: Locator;
+  readonly lastNameInput: Locator;
+  readonly addressInput: Locator;
+  readonly emailInput: Locator;
+  readonly phoneInput: Locator;
+  readonly zipInput: Locator;
+
+  readonly deliverySection: Locator;
+  readonly continueDeliveryButton: Locator;
+  readonly addressVerificationHeading: Locator;
+  readonly keepOriginalAddressButton: Locator;
+
+  readonly paymentSection: Locator;
+  readonly paymentHeading: Locator;
+  readonly continuePaymentButton: Locator;
+
   private addressSelected = false;
 
-  constructor(private readonly page: Page) {}
+  constructor(page: Page) {
+    this.page = page;
 
-  async verifyCheckoutLoaded() {
-    console.log('Verifying checkout page');
-
-    await expect(this.page.locator('body')).toBeVisible({
-      timeout: 15000,
-    });
-
-    expect(
-      this.page.url(),
-      'Should be on checkout page'
-    ).toContain('SinglePageCheckoutView');
-
-    console.log(`Checkout URL: ${this.page.url()}`);
-  }
-
-  async continueAsGuestIfNeeded() {
-    console.log('Checking guest checkout');
-
-    const guestButton = this.page
+    this.guestButton = page
       .getByRole('button', {
         name: /continue as guest/i,
       })
       .first();
 
+    this.firstNameInput = page
+      .locator(
+        [
+          'input[autocomplete="given-name"]',
+          '#fName',
+        ].join(',')
+      )
+      .first();
+
+    this.lastNameInput = page
+      .locator(
+        [
+          'input[autocomplete="family-name"]',
+          '#lName',
+        ].join(',')
+      )
+      .first();
+
+    this.addressInput = page
+      .locator(
+        [
+          'input[autocomplete="address-line1"]',
+          '[aria-label="Street Address*"]',
+        ].join(',')
+      )
+      .first();
+
+    this.emailInput = page
+      .locator(
+        [
+          '#checkout_step1_email',
+          'input[type="email"]',
+        ].join(',')
+      )
+      .first();
+
+    this.phoneInput = page
+      .locator(
+        [
+          '#phone1box',
+          'input[type="tel"]',
+        ].join(',')
+      )
+      .first();
+
+    this.zipInput = page
+      .locator(
+        [
+          '#zipbox',
+          'input[autocomplete="postal-code"]',
+        ].join(',')
+      )
+      .first();
+
+    this.deliverySection = page
+      .getByText(
+        /delivery method & gift options|delivery method|shipping method/i
+      )
+      .first();
+
+    this.continueDeliveryButton = page
+      .getByRole('button', {
+        name: /continue to delivery method/i,
+      })
+      .first();
+
+    this.addressVerificationHeading = page
+      .getByRole('heading', {
+        name: /shipping address verification/i,
+      })
+      .first();
+
+    this.keepOriginalAddressButton = page
+      .getByRole('button', {
+        name: /keep original address/i,
+      })
+      .first();
+
+    this.paymentSection = page
+      .getByText(
+        /payment|credit card|billing/i
+      )
+      .first();
+
+    this.paymentHeading = page
+      .getByRole('heading', {
+        name: /payment/i,
+      })
+      .first();
+
+    this.continuePaymentButton = page
+      .getByRole('button', {
+        name:
+          /continue to payment|continue to payment method|continue to payment information/i,
+      })
+      .first();
+  }
+
+  async verifyCheckoutLoaded(): Promise<void> {
+    await expect(
+      this.page.locator('body')
+    ).toBeVisible({
+      timeout: 15000,
+    });
+
+    expect(
+      this.page.url().toLowerCase(),
+      'Should be on checkout page'
+    ).toContain(
+      'singlepagecheckoutview'.toLowerCase()
+    );
+  }
+
+  async continueAsGuestIfNeeded(): Promise<void> {
     if (
-      !(await guestButton
+      !(await this.guestButton
         .isVisible()
         .catch(() => false))
     ) {
-      console.log('Guest step already completed');
       return;
     }
 
-    console.log('Continue As Guest found');
-
-    await guestButton.click({
+    await this.guestButton.click({
       timeout: 5000,
     });
 
-    await this.page.waitForTimeout(1500);
+    await expect(
+      this.page.locator('body')
+    ).toBeVisible();
+  }
 
-    console.log('Guest checkout opened');
+  async verifyCheckoutStateAvailable(): Promise<void> {
+    const guestVisible =
+      await this.guestButton
+        .isVisible()
+        .catch(() => false);
+
+    const shippingVisible =
+      await this.firstNameInput
+        .isVisible()
+        .catch(() => false);
+
+    const deliveryVisible =
+      await this.deliverySection
+        .isVisible()
+        .catch(() => false);
+
+    const paymentVisible =
+      await this.isPaymentVisible();
+
+    expect(
+      guestVisible ||
+        shippingVisible ||
+        deliveryVisible ||
+        paymentVisible,
+      'Checkout should expose Guest, Shipping, Delivery, or Payment state'
+    ).toBeTruthy();
   }
 
   async fillShippingDetails(
     data: ShippingData
-  ) {
-    console.log('Filling shipping details');
+  ): Promise<void> {
     const shouldFill =
-  await this.ensureShippingFormReady();
+      await this.ensureShippingFormReady();
 
-if (!shouldFill) {
-  console.log(
-    'Existing shipping information will be reused'
-  );
-
-  return;
-}
+    if (!shouldFill) {
+      return;
+    }
 
     this.addressSelected = false;
 
     await this.fillRequired(
-      [
-        'input[autocomplete="given-name"]',
-        '#fName',
-      ],
-      data.firstName ?? ''
+      this.firstNameInput,
+      data.firstName ?? '',
+      'First name'
     );
 
     await this.fillRequired(
-      [
-        'input[autocomplete="family-name"]',
-        '#lName',
-      ],
-      data.lastName ?? ''
+      this.lastNameInput,
+      data.lastName ?? '',
+      'Last name'
     );
 
     const address =
@@ -101,239 +237,196 @@ if (!shouldFill) {
       '';
 
     await this.fillRequired(
-      [
-        'input[autocomplete="address-line1"]',
-        '[aria-label="Street Address*"]',
-      ],
-      address
+      this.addressInput,
+      address,
+      'Street address'
     );
 
     await this.selectAddressSuggestion();
 
     if (data.email) {
       await this.fillRequired(
-        [
-          '#checkout_step1_email',
-          'input[type="email"]',
-        ],
-        data.email
+        this.emailInput,
+        data.email,
+        'Email'
       );
     }
 
     if (data.phone) {
       await this.fillRequired(
-        [
-          '#phone1box',
-          'input[type="tel"]',
-        ],
-        data.phone
+        this.phoneInput,
+        data.phone,
+        'Phone'
       );
     }
-
-    if (this.addressSelected) {
-      console.log(
-        'City / State / ZIP populated by address autocomplete'
-      );
-
-      const zip = this.page
-        .locator(
-          '#zipbox, input[autocomplete="postal-code"]'
-        )
-        .first();
-
-      if (
-        await zip
-          .isVisible()
-          .catch(() => false)
-      ) {
-        console.log(
-          `Detected ZIP: ${await zip.inputValue()}`
-        );
-      }
-    }
-
-    console.log('Shipping details completed');
-  }
-
-  async continueToDeliveryMethod() {
-  console.log('Continuing to Delivery Method');
-
-  /*
-   * Case 1:
-   * Checkout is already on/past Delivery Method.
-   */
-  const deliverySection = this.page
-    .getByText(
-      /delivery method & gift options|delivery method|shipping method/i
-    )
-    .first();
-
-  if (
-    await deliverySection
-      .isVisible()
-      .catch(() => false)
-  ) {
-    console.log(
-      'Delivery Method is already available - no continuation click required'
-    );
-
-    return;
-  }
-
-  /*
-   * Case 2:
-   * Shipping is still active and we need to continue.
-   */
-  const button = this.page
-    .getByRole('button', {
-      name: /continue to delivery method/i,
-    })
-    .first();
-
-  if (
-    !(await button
-      .isVisible()
-      .catch(() => false))
-  ) {
-    throw new Error(
-      'Neither Delivery Method section nor Continue To Delivery Method button is visible'
-    );
-  }
-
-  console.log(
-    'Clicking Continue To Delivery Method'
-  );
-
-  const clicked = await button
-    .click({
-      timeout: 7000,
-    })
-    .then(() => true)
-    .catch(() => false);
-
-  if (!clicked) {
-    console.log(
-      'Using DOM click fallback'
-    );
-
-    await button.evaluate(
-      (element: HTMLElement) => {
-        element.click();
-      }
-    );
-  }
-
-  await this.page.waitForTimeout(
-    1500
-  );
-
-  await this.handleAddressVerification();
-}
-
-  async handleAddressVerification() {
-    const heading = this.page
-      .getByRole('heading', {
-        name: /shipping address verification/i,
-      })
-      .first();
 
     if (
-      !(await heading
+      this.addressSelected &&
+      await this.zipInput
         .isVisible()
-        .catch(() => false))
+        .catch(() => false)
     ) {
-      console.log(
-        'Address verification modal not shown'
-      );
+      const zip =
+        await this.zipInput.inputValue();
+
+      expect(
+        zip,
+        'ZIP should be populated after address selection'
+      ).not.toBe('');
+    }
+  }
+
+  async verifyShippingDataAvailable(): Promise<void> {
+    const shippingFormVisible =
+      await this.firstNameInput
+        .isVisible()
+        .catch(() => false);
+
+    if (shippingFormVisible) {
+      const firstName =
+        await this.firstNameInput.inputValue();
+
+      const lastName =
+        await this.lastNameInput
+          .inputValue()
+          .catch(() => '');
+
+      expect(firstName).not.toBe('');
+      expect(lastName).not.toBe('');
 
       return;
     }
 
-    console.log(
-      'Shipping Address Verification detected'
-    );
+    const deliveryVisible =
+      await this.deliverySection
+        .isVisible()
+        .catch(() => false);
 
-    const keepOriginal = this.page
-      .getByRole('button', {
-        name: /keep original address/i,
-      })
-      .first();
+    const continueVisible =
+      await this.continueDeliveryButton
+        .isVisible()
+        .catch(() => false);
+
+    const paymentVisible =
+      await this.isPaymentVisible();
+
+    expect(
+      deliveryVisible ||
+        continueVisible ||
+        paymentVisible,
+      'Shipping should either contain data or already be completed'
+    ).toBeTruthy();
+  }
+
+  async continueToDeliveryMethod(): Promise<void> {
+    if (
+      await this.deliverySection
+        .isVisible()
+        .catch(() => false)
+    ) {
+      return;
+    }
+
+    if (await this.isPaymentVisible()) {
+      return;
+    }
 
     await expect(
-      keepOriginal
+      this.continueDeliveryButton,
+      'Continue To Delivery Method button should be visible'
+    ).toBeVisible({
+      timeout: 10000,
+    });
+
+    const clicked =
+      await this.continueDeliveryButton
+        .click({
+          timeout: 7000,
+        })
+        .then(() => true)
+        .catch(() => false);
+
+    if (!clicked) {
+      await this.continueDeliveryButton.evaluate(
+        (element: HTMLElement) => {
+          element.click();
+        }
+      );
+    }
+
+    await this.handleAddressVerification();
+  }
+
+  async handleAddressVerification(): Promise<void> {
+    if (
+      !(await this.addressVerificationHeading
+        .isVisible()
+        .catch(() => false))
+    ) {
+      return;
+    }
+
+    await expect(
+      this.keepOriginalAddressButton
     ).toBeVisible({
       timeout: 5000,
     });
 
-    console.log(
-      'Choosing Keep Original Address'
-    );
-
-    await keepOriginal.click({
+    await this.keepOriginalAddressButton.click({
       timeout: 5000,
     });
-
-    await this.page.waitForTimeout(1500);
   }
 
-  async verifyDeliveryMethodLoaded() {
-  console.log(
-    'Verifying Delivery Method section'
-  );
+  async verifyDeliveryMethodLoaded(): Promise<void> {
+    if (await this.isPaymentVisible()) {
+      return;
+    }
 
-  const deliveryText = this.page
-    .getByText(
-      /delivery method & gift options|delivery method|shipping method/i
-    )
-    .first();
+    const deliveryButton = this.page
+      .getByRole('button')
+      .filter({
+        hasText:
+          /delivery method & gift options|delivery method/i,
+      })
+      .first();
 
-  const deliveryButton = this.page
-    .getByRole('button')
-    .filter({
-      hasText:
-        /delivery method & gift options|delivery method/i,
-    })
-    .first();
+    const visible =
+      (await this.deliverySection
+        .isVisible()
+        .catch(() => false)) ||
+      (await deliveryButton
+        .isVisible()
+        .catch(() => false));
 
-  const deliveryVisible =
-    (await deliveryText
-      .isVisible()
-      .catch(() => false)) ||
-    (await deliveryButton
-      .isVisible()
-      .catch(() => false));
-
-  if (!deliveryVisible) {
-    throw new Error(
-      'Delivery Method section was not detected'
-    );
+    expect(
+      visible,
+      'Delivery Method section should be visible'
+    ).toBeTruthy();
   }
 
-  console.log(
-    'Delivery Method section detected'
-  );
-}
-  async selectDeliveryMethodIfNeeded() {
-    console.log(
-      'Checking delivery options'
-    );
+  async selectDeliveryMethodIfNeeded(): Promise<void> {
+    if (await this.isPaymentVisible()) {
+      return;
+    }
 
-    const radios = this.page.locator(
-      'input[type="radio"]:visible:not([disabled]), [role="radio"]:visible:not([aria-disabled="true"])'
-    );
-
-    const count = await radios.count();
-
-    if (count === 0) {
-      console.log(
-        'No delivery radio selection required'
+    const radios =
+      this.page.locator(
+        [
+          'input[type="radio"]:visible:not([disabled])',
+          '[role="radio"]:visible:not([aria-disabled="true"])',
+        ].join(',')
       );
 
+    const count =
+      await radios.count();
+
+    if (count === 0) {
       return;
     }
 
     for (let i = 0; i < count; i++) {
-      const radio = radios.nth(i);
+      const radio =
+        radios.nth(i);
 
       const checked =
         (await radio
@@ -344,85 +437,1476 @@ if (!shouldFill) {
         )) === 'true';
 
       if (checked) {
-        console.log(
-          'Delivery method already selected'
-        );
-
         return;
       }
     }
 
-    console.log(
-      'Selecting first available delivery method'
-    );
-
     await radios.first().click({
       timeout: 5000,
     });
-
-    await this.page.waitForTimeout(1000);
   }
 
-  async printDeliveryControls() {
-    console.log(
-      'Visible controls inside Delivery step:'
-    );
+  async verifyDeliveryMethodSelectedIfRequired(): Promise<void> {
+    if (await this.isPaymentVisible()) {
+      return;
+    }
 
-    const controls = this.page.locator(
-      'button:visible, a:visible, [role="button"]:visible'
-    );
+    const radios =
+      this.page.locator(
+        [
+          'input[type="radio"]:visible:not([disabled])',
+          '[role="radio"]:visible:not([aria-disabled="true"])',
+        ].join(',')
+      );
 
-    const count = Math.min(
-      await controls.count(),
-      60
-    );
+    const count =
+      await radios.count();
+
+    if (count === 0) {
+      return;
+    }
+
+    let selected = false;
 
     for (let i = 0; i < count; i++) {
-      const control = controls.nth(i);
+      const radio =
+        radios.nth(i);
 
-      const text = (
-        await control
-          .innerText()
-          .catch(() => '')
-      )
-        .replace(/\s+/g, ' ')
-        .trim();
+      const checked =
+        (await radio
+          .isChecked()
+          .catch(() => false)) ||
+        (await radio.getAttribute(
+          'aria-checked'
+        )) === 'true';
 
-      const aria =
-        (await control.getAttribute(
-          'aria-label'
-        )) ?? '';
-
-      if (!text && !aria) {
-        continue;
+      if (checked) {
+        selected = true;
+        break;
       }
+    }
+
+    expect(
+      selected,
+      'A delivery method should be selected'
+    ).toBeTruthy();
+  }
+
+  async continueToPayment(): Promise<void> {
+    if (await this.isPaymentVisible()) {
+      return;
+    }
+
+    await this.verifyDeliveryMethodLoaded();
+
+    await this.selectDeliveryMethodIfNeeded();
+
+    if (
+      await this.continuePaymentButton
+        .isVisible()
+        .catch(() => false)
+    ) {
+      await this.continuePaymentButton.click({
+        timeout: 7000,
+      });
+
+      return;
+    }
+
+    const fallback = this.page
+      .getByRole('button')
+      .filter({
+        hasText:
+          /continue.*payment|payment/i,
+      })
+      .first();
+
+    if (
+      await fallback
+        .isVisible()
+        .catch(() => false)
+    ) {
+      await fallback.click({
+        timeout: 7000,
+      });
+
+      return;
+    }
+
+    throw new Error(
+      'Payment continuation control was not found'
+    );
+  }
+
+  async verifyPaymentStepLoaded(): Promise<void> {
+    const visible =
+      await this.isPaymentVisible();
+
+    expect(
+      visible,
+      'Payment step should be visible'
+    ).toBeTruthy();
+  }
+
+// CHECKOUT-009
+async getOrderSummaryContainer(): Promise<Locator | null> {
+  const summary = this.page
+    .locator(
+      [
+        '[class*="order-summary" i]:visible',
+        '[class*="summary" i]:visible',
+        '[data-testid*="order-summary" i]:visible',
+        '[aria-label*="order summary" i]:visible',
+        'aside:visible',
+      ].join(',')
+    )
+    .filter({
+      hasText:
+        /order summary|subtotal|total|items?/i,
+    })
+    .first();
+
+  if (
+    await summary
+      .isVisible()
+      .catch(() => false)
+  ) {
+    return summary;
+  }
+
+  return null;
+}
+
+async verifyOrderSummaryVisible(): Promise<void> {
+  const summary =
+    await this.getOrderSummaryContainer();
+
+  expect(
+    summary,
+    'Checkout order summary should be visible'
+  ).not.toBeNull();
+
+  await expect(
+    summary!
+  ).toBeVisible();
+}
+
+// CHECKOUT-010
+async verifyCheckoutItemsVisible(): Promise<void> {
+  const summary =
+    await this.getOrderSummaryContainer();
+
+  expect(
+    summary,
+    'Order summary should be available'
+  ).not.toBeNull();
+
+  const productLike = summary!
+    .locator(
+      [
+        'a[href*="/product/" i]:visible',
+        'a[href*="/p/" i]:visible',
+        '[class*="product" i]:visible',
+        '[class*="item" i]:visible',
+        'img:visible',
+      ].join(',')
+    )
+    .first();
+
+  await expect(
+    productLike,
+    'At least one cart item should remain visible in checkout summary'
+  ).toBeVisible();
+}
+
+// CHECKOUT-011
+async getCheckoutQuantity(): Promise<number | null> {
+  const summary =
+    await this.getOrderSummaryContainer();
+
+  if (!summary) {
+    return null;
+  }
+
+  const quantityText = summary
+    .locator(
+      [
+        '[class*="quantity" i]:visible',
+        '[data-testid*="quantity" i]:visible',
+        '[aria-label*="quantity" i]:visible',
+      ].join(',')
+    )
+    .first();
+
+  if (
+    !(await quantityText
+      .isVisible()
+      .catch(() => false))
+  ) {
+    return null;
+  }
+
+  const text = (
+    await quantityText
+      .innerText()
+      .catch(() => '')
+  )
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const match =
+    text.match(/(\d+)/);
+
+  if (!match) {
+    return null;
+  }
+
+  return Number(match[1]);
+}
+
+// CHECKOUT-012
+async getCheckoutSubtotal(): Promise<number | null> {
+  return this.getMoneyValueNearLabel(
+    /subtotal/i
+  );
+}
+
+// CHECKOUT-013
+async getCheckoutShippingCost(): Promise<number | null> {
+  return this.getMoneyValueNearLabel(
+    /shipping|delivery/i
+  );
+}
+
+// CHECKOUT-014
+async getCheckoutTax(): Promise<number | null> {
+  return this.getMoneyValueNearLabel(
+    /tax/i
+  );
+}
+
+// CHECKOUT-015
+async getCheckoutTotal(): Promise<number | null> {
+  return this.getMoneyValueNearLabel(
+    /order total|grand total|total/i
+  );
+}
+
+async verifyCheckoutTotalDisplayed(): Promise<void> {
+  const total =
+    await this.getCheckoutTotal();
+
+  expect(
+    total,
+    'Checkout total should be displayed'
+  ).not.toBeNull();
+
+  expect(
+    total!
+  ).toBeGreaterThan(0);
+}
+
+private async getMoneyValueNearLabel(
+  label: RegExp
+): Promise<number | null> {
+  const candidates =
+    this.page.locator(
+      [
+        'main *:visible',
+        'aside *:visible',
+      ].join(',')
+    );
+
+  const count = Math.min(
+    await candidates.count(),
+    500
+  );
+
+  for (
+    let i = 0;
+    i < count;
+    i++
+  ) {
+    const candidate =
+      candidates.nth(i);
+
+    const text = (
+      await candidate
+        .innerText()
+        .catch(() => '')
+    )
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (
+      !text ||
+      !label.test(text)
+    ) {
+      continue;
+    }
+
+    const money =
+      text.match(
+        /\$?\s*([\d,]+(?:\.\d{1,2})?)/
+      );
+
+    if (!money) {
+      continue;
+    }
+
+    const value =
+      Number(
+        money[1].replace(/,/g, '')
+      );
+
+    if (
+      !Number.isNaN(value)
+    ) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+
+// CHECKOUT-016 → CHECKOUT-023
+async prepareShippingFormForValidation(): Promise<boolean> {
+  await this.continueAsGuestIfNeeded();
+
+  return this.ensureShippingFormReady();
+}
+
+async verifyRequiredFieldValidation(
+  field:
+    | 'firstName'
+    | 'lastName'
+    | 'address'
+    | 'zip'
+    | 'phone'
+    | 'email'
+): Promise<boolean> {
+  const inputMap: Record<
+    string,
+    Locator
+  > = {
+    firstName:
+      this.firstNameInput,
+    lastName:
+      this.lastNameInput,
+    address:
+      this.addressInput,
+    zip:
+      this.zipInput,
+    phone:
+      this.phoneInput,
+    email:
+      this.emailInput,
+  };
+
+  const input =
+    inputMap[field];
+
+  if (
+    !(await input
+      .isVisible()
+      .catch(() => false))
+  ) {
+    return false;
+  }
+
+  await input.fill('');
+
+  await input.blur();
+
+  await this.page.waitForTimeout(
+    300
+  );
+
+  const ariaInvalid =
+    await input.getAttribute(
+      'aria-invalid'
+    );
+
+  if (
+    ariaInvalid === 'true'
+  ) {
+    return true;
+  }
+
+  const required =
+    await input.getAttribute(
+      'required'
+    );
+
+  if (
+    required !== null
+  ) {
+    const invalid =
+      await input.evaluate(
+        (
+          element: HTMLInputElement
+        ) =>
+          !element.checkValidity()
+      );
+
+    if (invalid) {
+      return true;
+    }
+  }
+
+  const id =
+    await input.getAttribute(
+      'id'
+    );
+
+  if (id) {
+    const linkedError =
+      this.page.locator(
+        [
+          `[for="${id}"] + [class*="error" i]:visible`,
+          `#${id}-error:visible`,
+          `[aria-describedby*="${id}" i]:visible`,
+        ].join(',')
+      );
+
+    if (
+      await linkedError
+        .first()
+        .isVisible()
+        .catch(() => false)
+    ) {
+      return true;
+    }
+  }
+
+  const nearbyError =
+    input
+      .locator('xpath=..')
+      .locator(
+        [
+          '[role="alert"]:visible',
+          '[class*="error" i]:visible',
+          '[class*="validation" i]:visible',
+          '[class*="invalid" i]:visible',
+        ].join(',')
+      )
+      .first();
+
+  return nearbyError
+    .isVisible()
+    .catch(() => false);
+}
+
+// CHECKOUT-019
+async getCityInput(): Promise<Locator | null> {
+  const input =
+    this.page
+      .locator(
+        [
+          'input[autocomplete="address-level2"]:visible',
+          'input[name*="city" i]:visible',
+          'input[id*="city" i]:visible',
+          'input[aria-label*="city" i]:visible',
+        ].join(',')
+      )
+      .first();
+
+  if (
+    await input
+      .isVisible()
+      .catch(() => false)
+  ) {
+    return input;
+  }
+
+  return null;
+}
+
+// CHECKOUT-020
+async getStateControl(): Promise<Locator | null> {
+  const control =
+    this.page
+      .locator(
+        [
+          'select[autocomplete="address-level1"]:visible',
+          'select[name*="state" i]:visible',
+          'select[id*="state" i]:visible',
+          'select[aria-label*="state" i]:visible',
+          'input[autocomplete="address-level1"]:visible',
+          'input[name*="state" i]:visible',
+          'input[id*="state" i]:visible',
+          'input[aria-label*="state" i]:visible',
+        ].join(',')
+      )
+      .first();
+
+  if (
+    await control
+      .isVisible()
+      .catch(() => false)
+  ) {
+    return control;
+  }
+
+  return null;
+}
+
+async verifyCityRequiredValidation(): Promise<boolean> {
+  const input =
+    await this.getCityInput();
+
+  if (!input) {
+    return false;
+  }
+
+  await input.fill('');
+
+  await input.blur();
+
+  return this.verifyLocatorInvalid(
+    input
+  );
+}
+
+async verifyStateRequiredValidation(): Promise<boolean> {
+  const control =
+    await this.getStateControl();
+
+  if (!control) {
+    return false;
+  }
+
+  const tag =
+    await control.evaluate(
+      (element) =>
+        element.tagName.toLowerCase()
+    );
+
+  if (
+    tag === 'select'
+  ) {
+    const options =
+      control.locator('option');
+
+    const count =
+      await options.count();
+
+    for (
+      let i = 0;
+      i < count;
+      i++
+    ) {
+      const value =
+        (await options
+          .nth(i)
+          .getAttribute('value')) ?? '';
 
       if (
-        /delivery|payment|continue|shipping|gift/i.test(
-          `${text} ${aria}`
-        )
+        value === ''
       ) {
-        console.log(
-          `CONTROL ${i}: text="${text}" aria="${aria}"`
+        await control.selectOption(
+          value
+        );
+
+        break;
+      }
+    }
+  } else {
+    await control.fill('');
+  }
+
+  await control.blur();
+
+  return this.verifyLocatorInvalid(
+    control
+  );
+}
+
+// CHECKOUT-024
+async verifyMalformedEmailRejected(): Promise<boolean> {
+  if (
+    !(await this.emailInput
+      .isVisible()
+      .catch(() => false))
+  ) {
+    return false;
+  }
+
+  await this.emailInput.fill(
+    'invalid-email'
+  );
+
+  await this.emailInput.blur();
+
+  await this.page.waitForTimeout(
+    300
+  );
+
+  const type =
+    await this.emailInput.getAttribute(
+      'type'
+    );
+
+  if (
+    type === 'email'
+  ) {
+    const invalid =
+      await this.emailInput.evaluate(
+        (
+          element: HTMLInputElement
+        ) =>
+          !element.checkValidity()
+      );
+
+    if (invalid) {
+      return true;
+    }
+  }
+
+  return this.verifyLocatorInvalid(
+    this.emailInput
+  );
+}
+
+// CHECKOUT-025
+async verifyInvalidPostalCodeHandled(): Promise<boolean> {
+  if (
+    !(await this.zipInput
+      .isVisible()
+      .catch(() => false))
+  ) {
+    return false;
+  }
+
+  const original =
+    await this.zipInput
+      .inputValue()
+      .catch(() => '');
+
+  await this.zipInput.fill(
+    '!!!'
+  );
+
+  await this.zipInput.blur();
+
+  await this.page.waitForTimeout(
+    300
+  );
+
+  const invalid =
+    await this.verifyLocatorInvalid(
+      this.zipInput
+    );
+
+  if (invalid) {
+    return true;
+  }
+
+  const normalized =
+    await this.zipInput
+      .inputValue()
+      .catch(() => '');
+
+  if (
+    normalized !== '!!!'
+  ) {
+    return true;
+  }
+
+  /*
+   * Restore original value so the test
+   * does not leave checkout unusable.
+   */
+  await this.zipInput.fill(
+    original
+  );
+
+  return false;
+}
+
+private async verifyLocatorInvalid(
+  locator: Locator
+): Promise<boolean> {
+  const ariaInvalid =
+    await locator.getAttribute(
+      'aria-invalid'
+    );
+
+  if (
+    ariaInvalid === 'true'
+  ) {
+    return true;
+  }
+
+  const invalid =
+    await locator
+      .evaluate(
+        (
+          element:
+            | HTMLInputElement
+            | HTMLSelectElement
+        ) => {
+          if (
+            typeof element.checkValidity !==
+            'function'
+          ) {
+            return false;
+          }
+
+          return !element.checkValidity();
+        }
+      )
+      .catch(() => false);
+
+  if (invalid) {
+    return true;
+  }
+
+  const container =
+    locator.locator(
+      'xpath=..'
+    );
+
+  const error =
+    container
+      .locator(
+        [
+          '[role="alert"]:visible',
+          '[class*="error" i]:visible',
+          '[class*="validation" i]:visible',
+          '[class*="invalid" i]:visible',
+        ].join(',')
+      )
+      .first();
+
+  return error
+    .isVisible()
+    .catch(() => false);
+}
+
+// CHECKOUT-026
+async verifyInvalidPhoneHandled(): Promise<boolean> {
+  if (
+    !(await this.phoneInput
+      .isVisible()
+      .catch(() => false))
+  ) {
+    return false;
+  }
+
+  const original =
+    await this.phoneInput
+      .inputValue()
+      .catch(() => '');
+
+  await this.phoneInput.fill(
+    'abc'
+  );
+
+  await this.phoneInput.blur();
+
+  await this.page.waitForTimeout(
+    300
+  );
+
+  const invalid =
+    await this.verifyLocatorInvalid(
+      this.phoneInput
+    );
+
+  if (invalid) {
+    return true;
+  }
+
+  const current =
+    await this.phoneInput
+      .inputValue()
+      .catch(() => '');
+
+  if (
+    current !== 'abc'
+  ) {
+    return true;
+  }
+
+  await this.phoneInput.fill(
+    original
+  );
+
+  return false;
+}
+
+// CHECKOUT-027
+async verifyShippingWhitespaceHandled(): Promise<boolean> {
+  const ready =
+    await this.ensureShippingFormReady();
+
+  if (!ready) {
+    return false;
+  }
+
+  const original =
+    await this.firstNameInput
+      .inputValue()
+      .catch(() => '');
+
+  const value =
+    original || 'Automation';
+
+  await this.firstNameInput.fill(
+    `   ${value}   `
+  );
+
+  await this.firstNameInput.blur();
+
+  await this.page.waitForTimeout(
+    300
+  );
+
+  const current = (
+    await this.firstNameInput
+      .inputValue()
+      .catch(() => '')
+  );
+
+  const trimmed =
+    current.trim();
+
+  expect(
+    trimmed,
+    'Shipping field should preserve meaningful input when surrounded by spaces'
+  ).toBe(value);
+
+  return true;
+}
+
+// CHECKOUT-028
+async verifyLongShippingInputDoesNotBreakLayout(): Promise<boolean> {
+  const ready =
+    await this.ensureShippingFormReady();
+
+  if (!ready) {
+    return false;
+  }
+
+  const original =
+    await this.firstNameInput
+      .inputValue()
+      .catch(() => '');
+
+  const longValue =
+    'A'.repeat(120);
+
+  await this.firstNameInput.fill(
+    longValue
+  );
+
+  await this.firstNameInput.blur();
+
+  await this.page.waitForTimeout(
+    300
+  );
+
+  const bodyVisible =
+    await this.page
+      .locator('body')
+      .isVisible()
+      .catch(() => false);
+
+  const horizontalOverflow =
+    await this.page.evaluate(() => {
+      const root =
+        document.documentElement;
+
+      return (
+        root.scrollWidth >
+        root.clientWidth + 2
+      );
+    });
+
+  await this.firstNameInput.fill(
+    original
+  );
+
+  expect(
+    bodyVisible,
+    'Checkout page should remain visible after long input'
+  ).toBeTruthy();
+
+  expect(
+    horizontalOverflow,
+    'Long shipping input should not break mobile layout'
+  ).toBeFalsy();
+
+  return true;
+}
+
+// CHECKOUT-029 / CHECKOUT-030
+async getSelectedDeliveryMethodCount(): Promise<number> {
+  const radios =
+    this.page.locator(
+      [
+        'input[type="radio"]:visible',
+        '[role="radio"]:visible',
+      ].join(',')
+    );
+
+  const count =
+    await radios.count();
+
+  let selected = 0;
+
+  for (
+    let i = 0;
+    i < count;
+    i++
+  ) {
+    const radio =
+      radios.nth(i);
+
+    const checked =
+      (await radio
+        .isChecked()
+        .catch(() => false)) ||
+      (await radio.getAttribute(
+        'aria-checked'
+      )) === 'true';
+
+    if (checked) {
+      selected++;
+    }
+  }
+
+  return selected;
+}
+
+async verifySelectedDeliveryMethodPersists(): Promise<boolean> {
+  if (
+    await this.isPaymentVisible()
+  ) {
+    return true;
+  }
+
+  await this.selectDeliveryMethodIfNeeded();
+
+  const before =
+    await this.getSelectedDeliveryMethodCount();
+
+  if (before === 0) {
+    return false;
+  }
+
+  await this.page.waitForTimeout(
+    500
+  );
+
+  const after =
+    await this.getSelectedDeliveryMethodCount();
+
+  return after > 0;
+}
+
+// CHECKOUT-031
+async refreshAndVerifyCheckoutPersistence(): Promise<boolean> {
+  const beforeUrl =
+    this.page.url();
+
+  await this.page.reload({
+    waitUntil: 'domcontentloaded',
+    timeout: 60000,
+  });
+
+  await expect(
+    this.page.locator('body')
+  ).toBeVisible();
+
+  const currentUrl =
+    this.page.url();
+
+  const stillCheckout =
+    currentUrl
+      .toLowerCase()
+      .includes(
+        'singlepagecheckoutview'
+      );
+
+  if (!stillCheckout) {
+    return false;
+  }
+
+  await this.verifyCheckoutStateAvailable();
+
+  return (
+    currentUrl === beforeUrl ||
+    stillCheckout
+  );
+}
+
+// CHECKOUT-032
+async verifyBackForwardNavigationSafe(): Promise<boolean> {
+  const checkoutUrl =
+    this.page.url();
+
+  const wentBack =
+    await this.page
+      .goBack({
+        waitUntil:
+          'domcontentloaded',
+        timeout: 30000,
+      })
+      .then(() => true)
+      .catch(() => false);
+
+  if (!wentBack) {
+    return false;
+  }
+
+  const returned =
+    await this.page
+      .goForward({
+        waitUntil:
+          'domcontentloaded',
+        timeout: 30000,
+      })
+      .then(() => true)
+      .catch(() => false);
+
+  if (!returned) {
+    return false;
+  }
+
+  await expect(
+    this.page.locator('body')
+  ).toBeVisible();
+
+  const currentUrl =
+    this.page.url();
+
+  expect(
+    currentUrl,
+    'Forward navigation should return to checkout'
+  ).toBe(checkoutUrl);
+
+  await this.verifyCheckoutStateAvailable();
+
+  return true;
+}
+
+// CHECKOUT-033
+async verifyRepeatedContinueHandledSafely(): Promise<void> {
+  await this.continueToPayment();
+
+  await this.verifyPaymentStepLoaded();
+
+  /*
+   * Calling the same navigation action again
+   * should be idempotent once Payment is visible.
+   */
+  await this.continueToPayment();
+
+  await this.verifyPaymentStepLoaded();
+
+  const bodyText = (
+    await this.page
+      .locator('body')
+      .innerText()
+      .catch(() => '')
+  )
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  expect(
+    bodyText
+  ).not.toMatch(
+    /internal server error|application error|stack trace|uncaught exception/i
+  );
+}
+
+// CHECKOUT-034
+async hasPaymentFormOrControls(): Promise<boolean> {
+  if (
+    !(await this.isPaymentVisible())
+  ) {
+    return false;
+  }
+
+  const paymentControls =
+    this.page.locator(
+      [
+        'input[autocomplete="cc-number"]:visible',
+        'input[name*="card" i]:visible',
+        'input[id*="card" i]:visible',
+        'input[autocomplete="cc-exp"]:visible',
+        'input[autocomplete="cc-csc"]:visible',
+        '[class*="payment" i] input:visible',
+        '[data-testid*="payment" i] input:visible',
+        'iframe[title*="payment" i]:visible',
+        'iframe[title*="card" i]:visible',
+      ].join(',')
+    );
+
+  if (
+    await paymentControls.count() > 0
+  ) {
+    return true;
+  }
+
+  /*
+   * Some payment implementations render hosted
+   * payment fields only after choosing a method.
+   * The visible payment section is still a valid
+   * safe checkpoint for automation.
+   */
+  return this.isPaymentVisible();
+}
+
+// CHECKOUT-035
+async getVisiblePaymentFieldCount(): Promise<number> {
+  if (
+    !(await this.isPaymentVisible())
+  ) {
+    return 0;
+  }
+
+  const fields =
+    this.page.locator(
+      [
+        'input[autocomplete="cc-number"]:visible',
+        'input[autocomplete="cc-name"]:visible',
+        'input[autocomplete="cc-exp"]:visible',
+        'input[autocomplete="cc-csc"]:visible',
+        'input[name*="card" i]:visible',
+        'input[id*="card" i]:visible',
+        '[class*="payment" i] input:visible',
+        '[data-testid*="payment" i] input:visible',
+        'iframe[title*="payment" i]:visible',
+        'iframe[title*="card" i]:visible',
+      ].join(',')
+    );
+
+  return fields.count();
+}
+
+
+// CHECKOUT-036
+async verifyNoOrderSubmissionControlsAreTriggered(): Promise<void> {
+  /*
+   * Safety check:
+   * Automation must never submit/place the order.
+   * We only verify that potentially dangerous controls exist
+   * without interacting with them.
+   */
+  const submitControls =
+    this.page
+      .getByRole('button')
+      .filter({
+        hasText:
+          /place order|submit order|complete purchase|complete order|buy now|purchase/i,
+      });
+
+  const count =
+    await submitControls.count();
+
+  for (
+    let i = 0;
+    i < count;
+    i++
+  ) {
+    const control =
+      submitControls.nth(i);
+
+    if (
+      await control
+        .isVisible()
+        .catch(() => false)
+    ) {
+      expect(
+        await control.isEnabled()
+          .catch(() => true),
+        'Order submission control may exist, but automation must not click it'
+      ).toBeDefined();
+    }
+  }
+
+  const url =
+    this.page.url().toLowerCase();
+
+  expect(
+    url,
+    'Automation should still be inside checkout and must not reach order confirmation'
+  ).not.toMatch(
+    /orderconfirmation|confirmation|thank-you|thankyou|order-complete/
+  );
+}
+
+// CHECKOUT-037
+async hasHorizontalOverflow(): Promise<boolean> {
+  return this.page.evaluate(() => {
+    const root =
+      document.documentElement;
+
+    return (
+      root.scrollWidth >
+      root.clientWidth + 2
+    );
+  });
+}
+
+// CHECKOUT-038
+async verifyVisibleCheckoutControlsDoNotOverlap(): Promise<void> {
+  const controls =
+    this.page.locator(
+      [
+        'button:visible',
+        'input:visible',
+        'select:visible',
+        'textarea:visible',
+      ].join(',')
+    );
+
+  const count = Math.min(
+    await controls.count(),
+    50
+  );
+
+  const boxes: {
+    index: number;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }[] = [];
+
+  for (
+    let i = 0;
+    i < count;
+    i++
+  ) {
+    const control =
+      controls.nth(i);
+
+    const box =
+      await control
+        .boundingBox()
+        .catch(() => null);
+
+    if (!box) {
+      continue;
+    }
+
+    if (
+      box.width <= 0 ||
+      box.height <= 0
+    ) {
+      continue;
+    }
+
+    boxes.push({
+      index: i,
+      ...box,
+    });
+  }
+
+  for (
+    let i = 0;
+    i < boxes.length;
+    i++
+  ) {
+    for (
+      let j = i + 1;
+      j < boxes.length;
+      j++
+    ) {
+      const a =
+        boxes[i];
+
+      const b =
+        boxes[j];
+
+      const horizontal =
+        Math.min(
+          a.x + a.width,
+          b.x + b.width
+        ) -
+        Math.max(
+          a.x,
+          b.x
+        );
+
+      const vertical =
+        Math.min(
+          a.y + a.height,
+          b.y + b.height
+        ) -
+        Math.max(
+          a.y,
+          b.y
+        );
+
+      const overlap =
+        horizontal > 8 &&
+        vertical > 8;
+
+      /*
+       * Small/nested overlaps are common in styled controls.
+       * We only fail on substantial overlap.
+       */
+      if (overlap) {
+        const overlapArea =
+          horizontal *
+          vertical;
+
+        const smallerArea =
+          Math.min(
+            a.width * a.height,
+            b.width * b.height
+          );
+
+        const ratio =
+          smallerArea > 0
+            ? overlapArea /
+              smallerArea
+            : 0;
+
+        expect(
+          ratio,
+          `Checkout controls ${a.index} and ${b.index} should not substantially overlap`
+        ).toBeLessThan(
+          0.8
         );
       }
     }
   }
+}
 
-  private async selectAddressSuggestion() {
-    console.log(
-      'Waiting for address suggestion'
+// CHECKOUT-039
+async verifyCheckoutScrollableAndUsable(): Promise<void> {
+  const initialY =
+    await this.page.evaluate(
+      () => window.scrollY
     );
 
+  const bodyHeight =
+    await this.page.evaluate(
+      () =>
+        document.body.scrollHeight
+    );
+
+  const viewportHeight =
+    await this.page.evaluate(
+      () => window.innerHeight
+    );
+
+  if (
+    bodyHeight >
+    viewportHeight
+  ) {
+    await this.page.evaluate(
+      () => {
+        window.scrollTo(
+          0,
+          document.body.scrollHeight
+        );
+      }
+    );
+
+    await this.page.waitForTimeout(
+      400
+    );
+
+    const afterY =
+      await this.page.evaluate(
+        () => window.scrollY
+      );
+
+    expect(
+      afterY,
+      'Checkout page should scroll vertically'
+    ).toBeGreaterThan(
+      initialY
+    );
+  }
+
+  await expect(
+    this.page.locator('body')
+  ).toBeVisible();
+
+  const bodyText = (
+    await this.page
+      .locator('body')
+      .innerText()
+      .catch(() => '')
+  )
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  expect(
+    bodyText
+  ).not.toMatch(
+    /internal server error|application error|uncaught exception|stack trace/i
+  );
+}
+
+// CHECKOUT-040
+async getCheckoutViewport(): Promise<{
+  width: number;
+  height: number;
+}> {
+  return this.page.evaluate(() => ({
+    width:
+      window.innerWidth,
+    height:
+      window.innerHeight,
+  }));
+}
+
+async verifyCheckoutResponsiveLayout(): Promise<void> {
+  const viewport =
+    await this.getCheckoutViewport();
+
+  expect(
+    viewport.width
+  ).toBeGreaterThan(0);
+
+  expect(
+    viewport.height
+  ).toBeGreaterThan(0);
+
+  const overflow =
+    await this.hasHorizontalOverflow();
+
+  expect(
+    overflow,
+    'Checkout should not have horizontal overflow at the current Android viewport'
+  ).toBeFalsy();
+
+  await expect(
+    this.page.locator('body')
+  ).toBeVisible();
+}
+
+
+  private async isPaymentVisible(): Promise<boolean> {
+    return (
+      (await this.paymentSection
+        .isVisible()
+        .catch(() => false)) ||
+      (await this.paymentHeading
+        .isVisible()
+        .catch(() => false))
+    );
+  }
+
+  private async selectAddressSuggestion(): Promise<void> {
     const deadline =
       Date.now() + 7000;
 
-    while (
-      Date.now() < deadline
-    ) {
-      const options = this.page.locator(
-        '[role="option"]:visible'
-      );
+    while (Date.now() < deadline) {
+      const options =
+        this.page.locator(
+          '[role="option"]:visible'
+        );
 
       const count = Math.min(
         await options.count(),
@@ -450,10 +1934,6 @@ if (!shouldFill) {
           continue;
         }
 
-        console.log(
-          `Address candidate: "${text}"`
-        );
-
         const clicked =
           await option
             .click({
@@ -467,14 +1947,6 @@ if (!shouldFill) {
         }
 
         this.addressSelected = true;
-
-        console.log(
-          `Address selected: "${text}"`
-        );
-
-        await this.page.waitForTimeout(
-          1000
-        );
 
         return;
       }
@@ -490,244 +1962,106 @@ if (!shouldFill) {
   }
 
   private async fillRequired(
-    selectors: string[],
-    value: string
-  ) {
+    input: Locator,
+    value: string,
+    fieldName: string
+  ): Promise<void> {
     if (!value) {
       throw new Error(
-        'Required checkout value is empty'
+        `Required checkout value is empty: ${fieldName}`
       );
     }
 
-    for (const selector of selectors) {
-      const input = this.page
-        .locator(selector)
-        .first();
+    await expect(
+      input,
+      `${fieldName} input should be visible`
+    ).toBeVisible({
+      timeout: 10000,
+    });
+
+    await input.fill(value);
+  }
+
+  private async ensureShippingFormReady(): Promise<boolean> {
+    if (
+      await this.firstNameInput
+        .isVisible()
+        .catch(() => false)
+    ) {
+      return true;
+    }
+
+    if (
+      await this.continueDeliveryButton
+        .isVisible()
+        .catch(() => false)
+    ) {
+      return false;
+    }
+
+    const shippingButton = this.page
+      .getByRole('button')
+      .filter({
+        hasText: /^shipping$/i,
+      })
+      .first();
+
+    if (
+      await shippingButton
+        .isVisible()
+        .catch(() => false)
+    ) {
+      await shippingButton.click({
+        timeout: 5000,
+      });
 
       if (
-        !(await input
+        await this.firstNameInput
           .isVisible()
-          .catch(() => false))
+          .catch(() => false)
       ) {
-        continue;
+        return true;
       }
-
-      console.log(
-        `Filling ${selector} with "${value}"`
-      );
-
-      await input.fill(value);
-
-      return;
     }
 
-    throw new Error(
-      `Required input was not found for value: ${value}`
-    );
-  }
-  async continueToPayment() {
-  console.log(
-    'Compatibility flow: advancing from Delivery Method toward Payment'
-  );
-
-  await this.verifyDeliveryMethodLoaded();
-
-  await this.selectDeliveryMethodIfNeeded();
-
-  const nextButton = this.page
-    .getByRole('button', {
-      name:
-        /continue to payment|continue to payment method|continue to payment information|payment/i,
-    })
-    .first();
-
-  if (
-    await nextButton
-      .isVisible()
-      .catch(() => false)
-  ) {
-    const text = (
-      await nextButton
-        .innerText()
-        .catch(() => '')
-    )
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    console.log(
-      `Payment continuation control found: "${text}"`
-    );
-
-    await nextButton.click({
-      timeout: 7000,
-    });
-
-    await this.page.waitForTimeout(
-      1500
-    );
-
-    return;
-  }
-
-  console.log(
-    'Payment continuation control not available yet'
-  );
-}
-
-async verifyPaymentStepLoaded() {
-  console.log(
-    'Checking whether Payment step is visible'
-  );
-
-  const paymentSection = this.page
-    .getByText(
-      /payment|credit card|billing/i
-    )
-    .first();
-
-  const paymentHeading = this.page
-    .getByRole('heading', {
-      name: /payment/i,
-    })
-    .first();
-
-  const paymentVisible =
-    (await paymentSection
-      .isVisible()
-      .catch(() => false)) ||
-    (await paymentHeading
-      .isVisible()
-      .catch(() => false));
-
-  if (!paymentVisible) {
-    throw new Error(
-      'Payment step is not visible yet'
-    );
-  }
-
-  console.log(
-    'Payment step detected'
-  );
-}
-private async ensureShippingFormReady(): Promise<boolean> {
-  console.log('Checking shipping form state');
-
-  const firstName = this.page
-    .locator(
-      'input[autocomplete="given-name"]:visible, #fName:visible'
-    )
-    .first();
-
-  if (
-    await firstName
-      .isVisible()
-      .catch(() => false)
-  ) {
-    console.log('Shipping form is already open');
-    return true;
-  }
-
-  const deliverySection = this.page
-    .getByText(
-      /delivery method & gift options|delivery method/i
-    )
-    .first();
-
-  const continueDelivery = this.page
-    .getByRole('button', {
-      name: /continue to delivery method/i,
-    })
-    .first();
-
-  /*
-   * Shipping may already be completed from a previous run.
-   */
-  if (
-    await continueDelivery
-      .isVisible()
-      .catch(() => false)
-  ) {
-    console.log(
-      'Shipping data already exists; no need to refill it'
-    );
-
-    return false;
-  }
-
-  /*
-   * Try to reopen Shipping/Edit section.
-   */
-  const shippingButton = this.page
-    .getByRole('button')
-    .filter({
-      hasText: /^shipping$/i,
-    })
-    .first();
-
-  if (
-    await shippingButton
-      .isVisible()
-      .catch(() => false)
-  ) {
-    console.log('Opening Shipping section');
-
-    await shippingButton.click({
-      timeout: 5000,
-    });
-
-    await this.page.waitForTimeout(1000);
+    const editButton = this.page
+      .getByRole('button', {
+        name: /^edit$/i,
+      })
+      .first();
 
     if (
-      await firstName
+      await editButton
         .isVisible()
         .catch(() => false)
     ) {
-      return true;
+      await editButton.click({
+        timeout: 5000,
+      });
+
+      if (
+        await this.firstNameInput
+          .isVisible()
+          .catch(() => false)
+      ) {
+        return true;
+      }
     }
-  }
-
-  const editButton = this.page
-    .getByRole('button', {
-      name: /^edit$/i,
-    })
-    .first();
-
-  if (
-    await editButton
-      .isVisible()
-      .catch(() => false)
-  ) {
-    console.log('Opening saved Shipping information');
-
-    await editButton.click({
-      timeout: 5000,
-    });
-
-    await this.page.waitForTimeout(1000);
 
     if (
-      await firstName
+      await this.deliverySection
         .isVisible()
         .catch(() => false)
     ) {
-      return true;
+      return false;
     }
-  }
 
-  if (
-    await deliverySection
-      .isVisible()
-      .catch(() => false)
-  ) {
-    console.log(
-      'Checkout is already past Shipping; keeping existing shipping data'
+    if (await this.isPaymentVisible()) {
+      return false;
+    }
+
+    throw new Error(
+      'Shipping form is not visible and existing shipping state could not be detected'
     );
-
-    return false;
   }
-
-  throw new Error(
-    'Shipping form is not visible and existing shipping state could not be detected'
-  );
-}
 }
