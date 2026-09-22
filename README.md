@@ -1,56 +1,76 @@
 # CBI Playwright Real Android Mobile Automation
 
-A reusable Playwright automation framework for validating CBI mobile web experiences across multiple brands using a shared Page Object Model and real Android Chrome connectivity through ADB and Chrome DevTools Protocol (CDP).
+A reusable Playwright + TypeScript automation framework for testing CBI mobile web experiences across multiple brands using **real Android Chrome**, **ADB**, and the **Chrome DevTools Protocol (CDP)**.
 
-## Covered Sites
+The framework uses a shared Page Object Model, area-based test organization, reusable fixtures and helpers, and cross-site Smoke / Regression coverage.
 
-The framework is configured for:
+---
+
+## Supported CBI Brands
+
+The framework is configured to run against:
 
 - Frontgate
 - Ballard Designs
 - Garnet Hill
 - Grandin Road
 
-All site URLs are centralized in:
+Site configuration is centralized in:
 
 ```text
 config/sites.ts
+```
 
-Tech Stack
-Playwright
-TypeScript
-Node.js
-Page Object Model
-Android Debug Bridge (ADB)
-Chrome DevTools Protocol (CDP)
-VS Code
-Playwright Agents
+---
 
-Project Goals
+## Tech Stack
 
-The project provides a reusable cross-site mobile automation solution for CBI brands with emphasis on:
+- Playwright
+- TypeScript
+- Node.js
+- Page Object Model
+- Android Debug Bridge (ADB)
+- Chrome DevTools Protocol (CDP)
+- Real Android Chrome
+- VS Code
+- Playwright Agents
+- Git / GitHub
 
-Shared automation logic
-Dynamic product discovery
-Dynamic search
-Dynamic PDP option handling
-Shopping cart validation
-Checkout validation
-Shipping flow
-Delivery Method
-Payment step validation
-Regression coverage
-Real Android browser execution
-Minimal site-specific hardcoding
+---
 
-Architecture
+## Project Goals
 
-The framework follows the Page Object Model pattern.
+The project provides a reusable mobile automation framework with emphasis on:
 
+- Cross-brand reusable automation
+- Real Android browser execution
+- Area-based test architecture
+- Page Object Model
+- Dynamic product discovery
+- Dynamic search
+- Dynamic PDP option handling
+- Shopping cart validation
+- Checkout validation
+- Account and Registration coverage
+- Wishlist coverage
+- PLP and PDP validation
+- Header and Footer validation
+- Positive, negative, boundary, and edge-case scenarios
+- Smoke and Regression tagging
+- End-to-End purchase journey validation
+- Minimal site-specific hardcoding
+- Maintainable and scalable automation
+
+---
+
+# Current Architecture
+
+```text
 cbi-mobile-automation/
 │
 ├── .github/
-│   └── agents/
+│   ├── agents/
+│   └── workflows/
 │
 ├── .vscode/
 │   └── mcp.json
@@ -60,27 +80,61 @@ cbi-mobile-automation/
 │   └── test-data.ts
 │
 ├── pages/
-│   ├── HomePage.ts
-│   ├── SearchPage.ts
-│   ├── ProductPage.ts
+│   ├── AccountPage.ts
 │   ├── CartPage.ts
-│   └── CheckoutPage.ts
+│   ├── CheckoutPage.ts
+│   ├── HeaderFooterPage.ts
+│   ├── HomePage.ts
+│   ├── PLPPage.ts
+│   ├── ProductPage.ts
+│   ├── RegistrationPage.ts
+│   ├── SearchPage.ts
+│   └── WishlistPage.ts
 │
 ├── specs/
 │
 ├── test-plans/
+│   ├── issues-report.md
+│   ├── master-test-plan.md
+│   ├── regression-test-plan.md
+│   ├── smoke-test-plan.md
+│   └── test-execution-report.md
 │
 ├── tests/
-│   ├── regression/
-│   │   ├── header-footer.spec.ts
-│   │   ├── login.spec.ts
-│   │   ├── plp.spec.ts
-│   │   ├── registration.spec.ts
-│   │   └── wishlist.spec.ts
+│   ├── areas/
+│   │   ├── account/
+│   │   │   ├── login.spec.ts
+│   │   │   └── registration.spec.ts
+│   │   │
+│   │   ├── cart/
+│   │   │   └── cart.spec.ts
+│   │   │
+│   │   ├── checkout/
+│   │   │   └── checkout.spec.ts
+│   │   │
+│   │   ├── globals/
+│   │   │   └── header-footer.spec.ts
+│   │   │
+│   │   ├── pdp/
+│   │   │   └── pdp.spec.ts
+│   │   │
+│   │   ├── plp/
+│   │   │   └── plp.spec.ts
+│   │   │
+│   │   ├── search/
+│   │   │   └── search.spec.ts
+│   │   │
+│   │   └── wishlist/
+│   │       └── wishlist.spec.ts
 │   │
-│   └── smoke/
-│       ├── cbi-mobile-smoke.spec.ts
-│       └── payment.spec.ts
+│   ├── fixtures/
+│   │   └── android.fixture.ts
+│   │
+│   ├── helpers/
+│   │   └── product-discovery.ts
+│   │
+│   └── journeys/
+│       └── purchase-flow.e2e.spec.ts
 │
 ├── utils/
 │
@@ -89,163 +143,420 @@ cbi-mobile-automation/
 ├── playwright.config.ts
 ├── tsconfig.json
 └── README.md
+```
 
-Test Coverage
+---
 
-The current suite contains:
+# Test Organization
 
-28 tests
-7 test files
+The framework is organized by functional area rather than by separate duplicated Smoke and Regression folders.
 
-Coverage is shared across all four CBI brands.
+Current functional areas include:
 
-Smoke Testing
+- Login
+- Registration
+- PLP
+- PDP
+- Search
+- Cart
+- Checkout
+- Wishlist
+- Global Header / Footer
+- End-to-End Purchase Journey
 
-The main smoke test is:
+Smoke and Regression execution is controlled using Playwright tags:
 
-tests/smoke/cbi-mobile-smoke.spec.ts
+```text
+@smoke
+@regression
+```
 
-It validates:
+This allows critical scenarios to be reused in both suites without duplicating test logic.
 
-Open the configured CBI site
-Validate global page elements
-Discover search terms dynamically
-Search for products
-Detect a valid PDP dynamically
-Validate product details
-Detect and select product options dynamically
-Add product to cart
-Validate shopping cart
-Proceed to checkout
-Handle guest checkout
-Complete shipping information
+---
+
+# Current Test Discovery
+
+The current Playwright suite discovers:
+
+```text
+Total: 1296 tests in 10 files
+```
+
+This number represents the discovered Playwright executions across the configured CBI brands.
+
+Many area scenarios are executed against all four configured websites, so this should not be interpreted as 1296 unique business scenarios.
+
+To verify the current discovered suite:
+
+```bash
+npm run test:list
+```
+
+---
+
+# Area Coverage
+
+## Login
+
+Covers scenarios such as:
+
+- Open My Account
+- Login form visibility
+- Password masking
+- Forgot Password
+- Required field validation
+- Invalid email
+- Invalid credentials
+- Email whitespace
+- Email case handling
+- Enter-key submission
+- Refresh behavior
+- Back / Forward navigation
+- Long input handling
+- Mobile overflow validation
+- Mobile control overlap checks
+
+---
+
+## Registration
+
+Covers:
+
+- Registration page loading
+- Registration form visibility
+- Required fields
+- First and last name input
+- Email validation
+- Password validation
+- Password masking
+- Weak password handling
+- Confirm password behavior where available
+- Existing email handling
+- Terms controls where available
+- Keyboard interaction
+- Refresh / navigation behavior
+- Long input handling
+- Mobile responsive validation
+
+---
+
+## Product Listing Page (PLP)
+
+Covers:
+
+- Category / PLP loading
+- Product cards
+- Product links
+- Product information
+- Prices
+- Sorting
+- Filtering
+- Swatches where supported
+- Empty and unavailable states
+- URL behavior
+- Persistence
+- Promotional states
+- Mobile layout validation
+
+---
+
+## Product Detail Page (PDP)
+
+Covers:
+
+- PDP loading
+- Product name
+- Product price
+- Product imagery
+- Product options
+- Required option selection
+- Add To Cart
+- Quantity
+- Product details
+- Availability
+- Promotional pricing
+- Repeated interactions
+- Responsive mobile behavior
+
+---
+
+## Search
+
+Covers:
+
+- Search interface
+- Search submission
+- Valid search
+- Invalid / empty search
+- No-result states
+- Search result products
+- Search term handling
+- URL behavior
+- Sorting
+- Filtering
+- Keyboard submission
+- Repeated interaction
+- Mobile layout validation
+
+---
+
+## Cart
+
+Covers:
+
+- Cart loading
+- Cart item count
+- Product presence
+- Product price
+- Quantity controls
+- Quantity boundaries
+- Product options
+- Remove item
+- Empty cart
+- Multiple items
+- Subtotal
+- Promo code behavior
+- Refresh persistence
+- Navigation persistence
+- Checkout availability
+- Responsive layout validation
+
+---
+
+## Checkout
+
+Covers:
+
+- Checkout loading
+- Guest checkout
+- Shipping data
+- Required field validation
+- Email validation
+- Postal code validation
+- Phone validation
+- Delivery Method
+- Delivery selection
+- Order summary
+- Quantity
+- Subtotal
+- Shipping cost
+- Tax
+- Total
+- Refresh behavior
+- Back / Forward navigation
+- Payment checkpoint
+- Mobile responsiveness
+- Safe prevention of final order submission
+
+---
+
+## Wishlist
+
+Covers:
+
+- Add To Wishlist availability
+- Add product
+- Wishlist loading
+- Product presence
+- Remove product
+- Empty wishlist
+- Duplicate add behavior
+- Wishlist persistence
+- Product links
+- Count / badge behavior where supported
+- Back / Forward navigation
+- Responsive layout
+- Add / Remove stability
+
+---
+
+## Global Components
+
+Covers:
+
+- Header
+- Brand logo
+- Search control
+- Cart control
+- Account control
+- Mobile navigation
+- Footer
+- Logo navigation
+- Search interaction
+- Cart navigation
+- Account navigation
+- Mobile menu behavior
+- Newsletter behavior where supported
+- Footer links
+- Social links
+- Refresh behavior
+- Back / Forward behavior
+- Mobile overflow
+- Header overlap
+- Footer overlap
+- Responsive global layout
+
+---
+
+# End-to-End Purchase Journey
+
+The framework includes:
+
+```text
+tests/journeys/purchase-flow.e2e.spec.ts
+```
+
+The Journey validates the main mobile purchase path:
+
+```text
+Open Brand
+    ↓
+Verify Global Elements
+    ↓
+Discover Product Dynamically
+    ↓
+Open PDP
+    ↓
+Verify Product
+    ↓
+Select Required Product Options
+    ↓
+Add Product To Cart
+    ↓
+Open Cart
+    ↓
+Verify Cart Contains Product
+    ↓
+Verify Same PDP Product In Cart
+    ↓
+Proceed To Checkout
+    ↓
+Continue As Guest
+    ↓
+Fill Shipping Details
+    ↓
 Reach Delivery Method
-Validate Delivery Method
+    ↓
+Select Delivery Method
+    ↓
+Continue To Payment
+    ↓
+Verify Payment Checkpoint
+    ↓
+STOP
+```
 
-The smoke flow is shared across all configured sites.
+## Order Safety
 
-Payment Coverage
+The automated Journey intentionally stops at the Payment stage.
 
-Payment validation is handled by:
+It does **not** click:
 
-tests/smoke/payment.spec.ts
+```text
+Place Order
+Submit Order
+Complete Purchase
+Complete Order
+Buy Now
+```
 
-The test validates:
+The framework verifies that automation does not reach an Order Confirmation state.
 
-Delivery Method checkpoint
-Continue To Payment action
-Payment section visibility
-Payment-related controls
+---
 
-The same payment implementation is reused across:
+# Dynamic Product Discovery
 
-Frontgate
-Ballard Designs
-Garnet Hill
-Grandin Road
-Regression Coverage
+Product discovery logic is separated from the main E2E Journey:
 
-The regression suite covers the following areas.
+```text
+tests/helpers/product-discovery.ts
+```
 
-Header and Footer
-tests/regression/header-footer.spec.ts
+Instead of depending on a single hardcoded product, the automation can discover product candidates dynamically from the active CBI website.
 
-Validates reusable global site components.
+This helps reduce unnecessary brand-specific hardcoding.
 
-Login
-tests/regression/login.spec.ts
+---
 
-Validates account login functionality.
+# Page Object Model
 
-Registration
-tests/regression/registration.spec.ts
+Reusable browser interaction logic is stored in:
 
-Validates account registration functionality.
+```text
+pages/
+```
 
-Wishlist
-tests/regression/wishlist.spec.ts
+Examples:
 
-Validates wishlist behavior.
+### `PLPPage`
 
-PLP
-tests/regression/plp.spec.ts
+Handles:
 
-Validates Product Listing Page behavior.
+- PLP discovery
+- Product listing validation
+- Product cards
+- Sorting
+- Filtering
+- PLP-specific interactions
 
-Dynamic Test Strategy
+### `ProductPage`
 
-The framework avoids unnecessary hardcoded product data.
+Handles:
 
-Instead, the automation discovers information at runtime.
+- PDP validation
+- Product information
+- Product option selection
+- Add To Cart behavior
 
-Examples include:
+### `CartPage`
 
-Search terms discovered from visible navigation
-Products discovered dynamically from search results
-PDP URLs detected from runtime search results
-Product names extracted dynamically
-Required PDP options detected dynamically
-Cart values validated dynamically
+Handles:
 
-This allows the same automation flow to work across multiple CBI websites.
+- Cart page validation
+- Product verification
+- Quantity
+- Prices
+- Subtotal
+- Removal
+- Checkout navigation
 
-Page Object Model
+### `CheckoutPage`
 
-Reusable browser interaction logic is stored inside the pages directory.
+Handles:
 
-HomePage
+- Checkout validation
+- Guest checkout
+- Shipping
+- Address autocomplete
+- Address verification
+- Delivery Method
+- Payment navigation
+- Safe Payment checkpoint validation
 
-Responsible for:
+### `AccountPage`
 
-Page load validation
-Global element validation
-SearchPage
+Handles Login and account-related interactions.
 
-Responsible for:
+### `RegistrationPage`
 
-Opening mobile search
-Search interactions
-ProductPage
+Handles Registration-specific interactions and validation.
 
-Responsible for:
+### `HeaderFooterPage`
 
-PDP validation
-Product name extraction
-Dynamic option discovery
-Add To Cart behavior
+Handles reusable global UI components.
 
-Product option detection is intentionally restricted to the product content area to avoid accidentally interacting with global controls such as:
+### `WishlistPage`
 
-Affiliate site selectors
-Country selectors
-Currency selectors
-Navigation controls
-CartPage
+Handles Wishlist interactions and state validation.
 
-Responsible for:
+---
 
-Opening the shopping cart
-Cart page validation
-Cart item count
-Checkout navigation
-CheckoutPage
+# Real Android Architecture
 
-Responsible for:
+This framework is designed to execute against **Chrome running on a real Android device**.
 
-Checkout validation
-Guest checkout
-Shipping information
-Address autocomplete
-Address verification
-Delivery Method
-Payment navigation
-Payment section validation
-Real Android Architecture
-
-The framework is designed to interact with Chrome running on an Android device instead of using desktop browser emulation.
-
-The connection flow is:
-
+```text
 Playwright
     ↓
 Chrome DevTools Protocol
@@ -255,196 +566,368 @@ localhost:9222
 ADB Port Forwarding
     ↓
 Chrome on Android
+```
 
-Playwright connects using:
+The reusable Android fixture is located at:
 
-await chromium.connectOverCDP(
+```text
+tests/fixtures/android.fixture.ts
+```
+
+Playwright connects to Android Chrome using CDP:
+
+```ts
+chromium.connectOverCDP(
   'http://127.0.0.1:9222'
 );
-Android Setup
-1. Connect Android Device
+```
 
-Connect an Android phone through USB and enable:
+---
 
+# Android Setup
+
+## 1. Connect Android Device
+
+Connect the Android device through USB.
+
+Enable:
+
+```text
 Developer Options
 USB Debugging
+```
 
-Verify the device:
+Verify connectivity:
 
+```bash
 adb devices
+```
 
 The device should appear with status:
 
+```text
 device
-2. Open Chrome on Android
+```
 
-Chrome must be running on the Android device.
+---
+
+## 2. Reset Existing ADB Forwarding
+
+```bash
+adb forward --remove-all
+```
+
+---
+
+## 3. Restart Android Chrome
+
+```bash
+adb shell am force-stop com.android.chrome
+```
 
 Example:
 
+```bash
 adb shell am start \
   -a android.intent.action.VIEW \
   -d "https://certwcs.frontgate.com/" \
   com.android.chrome
-3. Configure CDP Forwarding
+```
 
-Run:
+---
 
-adb forward --remove-all
+## 4. Forward Chrome DevTools Port
 
-Then:
-
+```bash
 adb forward tcp:9222 localabstract:chrome_devtools_remote
-4. Verify Chrome Debugging
+```
 
-Run:
+---
 
+## 5. Verify Chrome DevTools Connection
+
+```bash
 curl http://127.0.0.1:9222/json/version
+```
 
-A successful response should return Chrome debugging information including:
+A successful response should contain data such as:
 
+```text
+Browser
 webSocketDebuggerUrl
-Installation
+```
+
+The Android device and CDP forwarding must be active before executing runtime tests.
+
+---
+
+# Installation
 
 Clone the repository:
 
+```bash
 git clone https://github.com/m-zyoud/cbi-mobile-automation.git
+```
 
 Enter the project:
 
+```bash
 cd cbi-mobile-automation
+```
 
 Install dependencies:
 
+```bash
 npm install
-TypeScript Validation
+```
 
-Validate the project without executing Android tests:
+---
 
-npx tsc --noEmit
-List Available Tests
+# Validation Commands
 
-To verify test discovery without executing them:
+## TypeScript Validation
 
-npx playwright test --list
+```bash
+npm run typecheck
+```
 
-Expected suite size:
+Equivalent to:
 
-28 tests in 7 files
-Run Smoke Tests
+```bash
+tsc --noEmit
+```
 
-Run all cross-site smoke tests:
+---
 
-npx playwright test tests/smoke/cbi-mobile-smoke.spec.ts --workers=1
+## List Tests Without Running Them
 
-Using one worker is recommended because the tests share the same real Android Chrome session.
+```bash
+npm run test:list
+```
 
-Run One Brand
+Current expected result:
 
-Example for Frontgate:
+```text
+Total: 1296 tests in 10 files
+```
 
-npx playwright test \
-  tests/smoke/cbi-mobile-smoke.spec.ts \
-  --grep="Frontgate" \
-  --workers=1
+---
 
-Example for Ballard Designs:
+# Test Execution
 
-npx playwright test \
-  tests/smoke/cbi-mobile-smoke.spec.ts \
-  --grep="Ballard" \
-  --workers=1
+Because all tests share the same real Android Chrome environment, the framework executes with:
 
-  Run Payment Tests
-npx playwright test tests/smoke/payment.spec.ts --workers=1
-Run Regression Tests
-npx playwright test tests/regression --workers=1
-Test Data
+```text
+workers=1
+```
+
+## Run All Tests
+
+```bash
+npm test
+```
+
+---
+
+## Run Smoke
+
+```bash
+npm run test:smoke
+```
+
+Equivalent to:
+
+```bash
+playwright test --grep @smoke --workers=1
+```
+
+---
+
+## Run Regression
+
+```bash
+npm run test:regression
+```
+
+Equivalent to:
+
+```bash
+playwright test --grep @regression --workers=1
+```
+
+---
+
+## Run End-to-End Journey
+
+```bash
+npm run test:e2e
+```
+
+This executes:
+
+```text
+tests/journeys/purchase-flow.e2e.spec.ts
+```
+
+---
+
+# Run By Brand
+
+## Frontgate
+
+```bash
+npm run test:frontgate
+```
+
+## Ballard Designs
+
+```bash
+npm run test:ballard
+```
+
+## Garnet Hill
+
+```bash
+npm run test:garnet
+```
+
+## Grandin Road
+
+```bash
+npm run test:grandin
+```
+
+---
+
+# Playwright Report
+
+Open the latest Playwright HTML report:
+
+```bash
+npm run report
+```
+
+---
+
+# Test Data
 
 Reusable test data is stored in:
 
+```text
 config/test-data.ts
+```
 
-Examples include:
+This includes data used by flows such as:
 
-Account data
-Registration data
-Shipping details
+- Login
+- Registration
+- Shipping
 
-Sensitive values should be provided through environment variables whenever required.
+Sensitive values should be supplied through environment variables where required.
 
 Example:
 
+```bash
 export CBI_TEST_EMAIL="example@example.com"
 export CBI_TEST_PASSWORD="your-password"
-Playwright Agents
+```
 
-The project includes Playwright agent configuration.
+Sensitive credentials should never be committed to the repository.
 
-The following agents are available:
+---
 
-Planner
-Generator
-Healer
+# Playwright Agents
 
-Agent definitions are stored under:
+The repository contains Playwright agent configuration under:
 
+```text
 .github/agents/
+```
 
-VS Code integration is configured in:
+Available agent definitions include:
 
-.vscode/mcp.json
+- Planner
+- Generator
+- Healer
 
-The agents can support:
+They can assist with:
 
-Test planning
-Test generation
-Test maintenance
-Locator healing
-Automation troubleshooting
-Reliability Strategy
+- Test planning
+- Test generation
+- Locator maintenance
+- Automation troubleshooting
 
-Several techniques are used to improve test reliability:
+VS Code integration is configured under:
 
-Runtime element discovery
-Reusable Page Objects
-Limited search retries
-Explicit visibility checks
-DOM fallback clicks where required
-Dynamic product selection
-Dynamic PDP option handling
-URL validation
-Checkout state detection
-Shipping state reuse
-Address autocomplete support
-Address verification handling
-Serial execution for shared Android sessions
-Generated Files
+```text
+.vscode/
+```
 
-The following generated files are excluded from Git:
+---
 
+# Reliability Strategy
+
+The framework uses several techniques to improve maintainability and reliability:
+
+- Shared Page Objects
+- Reusable Android fixture
+- Runtime product discovery
+- Dynamic PDP option handling
+- Explicit visibility assertions
+- Controlled retries during discovery
+- Centralized site configuration
+- Area-based test organization
+- Smoke / Regression tags
+- Single Android worker
+- Safe checkout checkpoints
+- Mobile overflow validation
+- Responsive control checks
+- Avoidance of final order submission
+
+---
+
+# Generated Files
+
+Generated and local files should not be committed:
+
+```text
 node_modules/
 test-results/
 playwright-report/
 .env
 .DS_Store
-Current Validation Status
+```
 
-The project has been statically validated using:
+---
 
-npx tsc --noEmit
+# Current Validation Status
+
+The current project has been successfully validated for:
+
+```bash
+npm run typecheck
+```
 
 and:
 
-npx playwright test --list
+```bash
+npm run test:list
+```
 
-The current discovered suite contains:
+Current discovered suite:
 
-28 tests
-7 files
+```text
+1296 tests in 10 files
+```
 
-The automation architecture supports execution against all four configured CBI brands using the same reusable real-Android Playwright framework.
+Full runtime execution requires a connected Android device with active ADB and CDP forwarding.
 
-Repository
+Static discovery success does not imply that every test has been runtime-validated on every brand.
+
+---
+
+# Repository
+
+```text
 https://github.com/m-zyoud/cbi-mobile-automation
-
+```

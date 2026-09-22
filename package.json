@@ -4,19 +4,22 @@
   "description": "Reusable Playwright automation framework for CBI mobile web testing on real Android Chrome using ADB and CDP.",
   "main": "index.js",
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "test:list": "playwright test --list",
-    "test": "playwright test --workers=1",
-"test:smoke": "playwright test --grep @smoke --workers=1",
-    "test:cross-site": "playwright test tests/smoke/cbi-mobile-smoke.spec.ts --workers=1",
-    "test:payment": "playwright test tests/smoke/payment.spec.ts --workers=1",
-"test:regression": "playwright test --grep @regression --workers=1",
-    "test:frontgate": "playwright test tests/smoke/cbi-mobile-smoke.spec.ts --grep=\"Frontgate\" --workers=1",
-    "test:ballard": "playwright test tests/smoke/cbi-mobile-smoke.spec.ts --grep=\"Ballard\" --workers=1",
-    "test:garnet": "playwright test tests/smoke/cbi-mobile-smoke.spec.ts --grep=\"Garnet Hill\" --workers=1",
-    "test:grandin": "playwright test tests/smoke/cbi-mobile-smoke.spec.ts --grep=\"Grandin Road\" --workers=1",
-    "report": "playwright show-report"
-  },
+  "typecheck": "tsc --noEmit",
+  "test:list": "playwright test --list",
+  "test": "playwright test --workers=1",
+
+  "test:smoke": "playwright test --grep @smoke --workers=1",
+  "test:regression": "playwright test --grep @regression --workers=1",
+
+  "test:e2e": "playwright test tests/journeys/purchase-flow.e2e.spec.ts --workers=1",
+
+  "test:frontgate": "playwright test --grep \"Frontgate\" --workers=1",
+  "test:ballard": "playwright test --grep \"Ballard Designs\" --workers=1",
+  "test:garnet": "playwright test --grep \"Garnet Hill\" --workers=1",
+  "test:grandin": "playwright test --grep \"Grandin Road\" --workers=1",
+
+  "report": "playwright show-report"
+},
   "keywords": [
     "playwright",
     "qa",
