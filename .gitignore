@@ -3,3 +3,6 @@ test-results/
 playwright-report/
 .env
 .DS_Store
+
+.DS_Store
+cbi-mobile-automation/
