@@ -242,7 +242,18 @@ export class CheckoutPage {
       'Street address'
     );
 
-    await this.selectAddressSuggestion();
+    const suggestionSelected =
+      await this.selectAddressSuggestion();
+
+    if (!suggestionSelected) {
+      console.log(
+        'No usable address autocomplete suggestion was available; using manual shipping address fields'
+      );
+
+      await this.fillManualAddressFields(
+        data
+      );
+    }
 
     if (data.email) {
       await this.fillRequired(
@@ -261,18 +272,25 @@ export class CheckoutPage {
     }
 
     if (
-      this.addressSelected &&
       await this.zipInput
         .isVisible()
         .catch(() => false)
     ) {
       const zip =
-        await this.zipInput.inputValue();
+        await this.zipInput
+          .inputValue()
+          .catch(() => '');
 
-      expect(
-        zip,
-        'ZIP should be populated after address selection'
-      ).not.toBe('');
+      if (
+        this.addressSelected ||
+        data.zip ||
+        data.postalCode
+      ) {
+        expect(
+          zip,
+          'ZIP / postal code should be populated after shipping address entry'
+        ).not.toBe('');
+      }
     }
   }
 
@@ -1898,24 +1916,59 @@ async verifyCheckoutResponsiveLayout(): Promise<void> {
     );
   }
 
-  private async selectAddressSuggestion(): Promise<void> {
+  private async selectAddressSuggestion(): Promise<boolean> {
     const deadline =
-      Date.now() + 7000;
+      Date.now() + 9000;
 
-    while (Date.now() < deadline) {
+    const candidateSelector =
+      [
+        '[role="listbox"] [role="option"]:visible',
+        '[role="option"]:visible',
+        '.pac-container .pac-item:visible',
+        '[class*="autocomplete" i] [role="option"]:visible',
+        '[class*="autocomplete" i] li:visible',
+        '[class*="autocomplete" i] button:visible',
+        '[class*="autocomplete" i] a:visible',
+        '[class*="suggest" i] [role="option"]:visible',
+        '[class*="suggest" i] li:visible',
+        '[class*="suggest" i] button:visible',
+        '[class*="suggest" i] a:visible',
+        '[data-testid*="address" i][data-testid*="suggest" i]:visible',
+        '[data-testid*="autocomplete" i]:visible',
+      ].join(',');
+
+    while (
+      Date.now() < deadline
+    ) {
       const options =
         this.page.locator(
-          '[role="option"]:visible'
+          candidateSelector
         );
 
-      const count = Math.min(
-        await options.count(),
-        20
-      );
+      const count =
+        Math.min(
+          await options
+            .count()
+            .catch(() => 0),
+          30
+        );
 
-      for (let i = 0; i < count; i++) {
+      for (
+        let i = 0;
+        i < count;
+        i++
+      ) {
         const option =
           options.nth(i);
+
+        const visible =
+          await option
+            .isVisible()
+            .catch(() => false);
+
+        if (!visible) {
+          continue;
+        }
 
         const text = (
           await option
@@ -1927,37 +1980,268 @@ async verifyCheckoutResponsiveLayout(): Promise<void> {
 
         if (
           !text ||
-          /loading|searching|please wait/i.test(
+          /loading|searching|please wait|no results|no addresses|not found/i.test(
             text
           )
         ) {
           continue;
         }
 
+        const ariaLabel =
+          (await option
+            .getAttribute(
+              'aria-label'
+            )) ?? '';
+
+        const combined =
+          `${text} ${ariaLabel}`
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        if (
+          /close|clear|cancel|search|use current location/i.test(
+            combined
+          )
+        ) {
+          continue;
+        }
+
+        console.log(
+          `Trying address suggestion: "${text}"`
+        );
+
         const clicked =
           await option
             .click({
-              timeout: 2000,
+              timeout: 2500,
             })
             .then(() => true)
             .catch(() => false);
 
         if (!clicked) {
-          continue;
+          const child =
+            option
+              .locator(
+                'button:visible, a:visible, [role="option"]:visible'
+              )
+              .first();
+
+          const childClicked =
+            await child
+              .click({
+                timeout: 1500,
+              })
+              .then(() => true)
+              .catch(() => false);
+
+          if (!childClicked) {
+            continue;
+          }
         }
+
+        await this.page.waitForTimeout(
+          500
+        );
 
         this.addressSelected = true;
 
-        return;
+        console.log(
+          'Address autocomplete suggestion selected'
+        );
+
+        return true;
+      }
+
+      const city =
+        await this.getCityInput();
+
+      const cityValue =
+        city
+          ? await city
+              .inputValue()
+              .catch(() => '')
+          : '';
+
+      const zipVisible =
+        await this.zipInput
+          .isVisible()
+          .catch(() => false);
+
+      const zipValue =
+        zipVisible
+          ? await this.zipInput
+              .inputValue()
+              .catch(() => '')
+          : '';
+
+      if (
+        cityValue.trim() ||
+        zipValue.trim()
+      ) {
+        this.addressSelected = true;
+
+        console.log(
+          'Address widget populated downstream fields without a clickable suggestion'
+        );
+
+        return true;
       }
 
       await this.page.waitForTimeout(
-        500
+        400
       );
     }
 
-    throw new Error(
-      'No usable address autocomplete suggestion was found'
+    return false;
+  }
+
+  private async fillManualAddressFields(
+    data: ShippingData
+  ): Promise<void> {
+    const city =
+      await this.getCityInput();
+
+    if (
+      city &&
+      data.city
+    ) {
+      const current =
+        await city
+          .inputValue()
+          .catch(() => '');
+
+      if (!current.trim()) {
+        console.log(
+          `Filling manual city: ${data.city}`
+        );
+
+        await city.fill(
+          data.city
+        );
+      }
+    }
+
+    const stateControl =
+      await this.getStateControl();
+
+    if (
+      stateControl &&
+      data.state
+    ) {
+      const tag =
+        await stateControl
+          .evaluate(
+            (element) =>
+              element.tagName.toLowerCase()
+          )
+          .catch(() => '');
+
+      if (tag === 'select') {
+        const options =
+          stateControl.locator(
+            'option'
+          );
+
+        const count =
+          await options
+            .count()
+            .catch(() => 0);
+
+        let selected = false;
+
+        for (
+          let i = 0;
+          i < count;
+          i++
+        ) {
+          const option =
+            options.nth(i);
+
+          const value =
+            (await option
+              .getAttribute(
+                'value'
+              )) ?? '';
+
+          const label = (
+            await option
+              .innerText()
+              .catch(() => '')
+          )
+            .replace(/\s+/g, ' ')
+            .trim();
+
+          if (
+            value.toLowerCase() ===
+              data.state.toLowerCase() ||
+            label.toLowerCase() ===
+              data.state.toLowerCase()
+          ) {
+            await stateControl
+              .selectOption(
+                value
+              );
+
+            selected = true;
+            break;
+          }
+        }
+
+        if (!selected) {
+          await stateControl
+            .selectOption({
+              label:
+                data.state,
+            })
+            .catch(() => undefined);
+        }
+      } else {
+        const current =
+          await stateControl
+            .inputValue()
+            .catch(() => '');
+
+        if (!current.trim()) {
+          await stateControl.fill(
+            data.state
+          );
+        }
+      }
+    }
+
+    const postal =
+      data.zip ??
+      data.postalCode ??
+      '';
+
+    if (
+      postal &&
+      await this.zipInput
+        .isVisible()
+        .catch(() => false)
+    ) {
+      const current =
+        await this.zipInput
+          .inputValue()
+          .catch(() => '');
+
+      if (!current.trim()) {
+        console.log(
+          `Filling manual ZIP / postal code: ${postal}`
+        );
+
+        await this.zipInput.fill(
+          postal
+        );
+      }
+    }
+
+    await this.addressInput
+      .blur()
+      .catch(() => undefined);
+
+    await this.page.waitForTimeout(
+      500
     );
   }
 
@@ -1983,6 +2267,36 @@ async verifyCheckoutResponsiveLayout(): Promise<void> {
   }
 
   private async ensureShippingFormReady(): Promise<boolean> {
+    await this.page
+      .waitForLoadState(
+        'domcontentloaded',
+        {
+          timeout: 10000,
+        }
+      )
+      .catch(() => undefined);
+
+    await this.page.waitForTimeout(
+      1500
+    );
+
+    await this.page
+      .locator(
+        [
+          '[id^="accordion__header-step1-"]',
+          '#shipping-next-btn',
+          'input[name*="first" i]',
+          'input[type="email"]',
+          'text=/shipping/i',
+        ].join(',')
+      )
+      .first()
+      .waitFor({
+        state: 'visible',
+        timeout: 10000,
+      })
+      .catch(() => undefined);
+
     if (
       await this.firstNameInput
         .isVisible()
@@ -1999,6 +2313,51 @@ async verifyCheckoutResponsiveLayout(): Promise<void> {
       return false;
     }
 
+    const shippingHeader =
+      this.page
+        .locator(
+          '[id^="accordion__header-step1-"]'
+        )
+        .first();
+
+    const shippingHeaderCount =
+      await shippingHeader
+        .count()
+        .catch(() => 0);
+
+    if (
+      shippingHeaderCount > 0
+    ) {
+      const expanded =
+        await shippingHeader
+          .getAttribute(
+            'aria-expanded'
+          )
+          .catch(() => null);
+
+      if (
+        expanded === 'false'
+      ) {
+        await shippingHeader
+          .click({
+            timeout: 5000,
+          })
+          .catch(() => undefined);
+
+        await this.page.waitForTimeout(
+          500
+        );
+
+        if (
+          await this.firstNameInput
+            .isVisible()
+            .catch(() => false)
+        ) {
+          return true;
+        }
+      }
+    }
+
     const shippingButton = this.page
       .getByRole('button')
       .filter({
@@ -2011,9 +2370,11 @@ async verifyCheckoutResponsiveLayout(): Promise<void> {
         .isVisible()
         .catch(() => false)
     ) {
-      await shippingButton.click({
-        timeout: 5000,
-      });
+      await shippingButton
+        .click({
+          timeout: 5000,
+        })
+        .catch(() => undefined);
 
       if (
         await this.firstNameInput
@@ -2035,9 +2396,11 @@ async verifyCheckoutResponsiveLayout(): Promise<void> {
         .isVisible()
         .catch(() => false)
     ) {
-      await editButton.click({
-        timeout: 5000,
-      });
+      await editButton
+        .click({
+          timeout: 5000,
+        })
+        .catch(() => undefined);
 
       if (
         await this.firstNameInput
@@ -2056,9 +2419,127 @@ async verifyCheckoutResponsiveLayout(): Promise<void> {
       return false;
     }
 
-    if (await this.isPaymentVisible()) {
+    if (
+      await this.isPaymentVisible()
+    ) {
       return false;
     }
+
+    console.log(
+      '===== CHECKOUT STATE DEBUG ====='
+    );
+
+    console.log(
+      'URL:',
+      this.page.url()
+    );
+
+    console.log(
+      'Title:',
+      await this.page
+        .title()
+        .catch(() => '')
+    );
+
+    const checkoutSelectors = [
+      '[id^="accordion__header-step1-"]',
+      '[id^="accordion__header-step2-"]',
+      '[id^="accordion__header-step3-"]',
+      '#shipping-next-btn',
+      'input[name*="first" i]',
+      'input[name*="last" i]',
+      'input[name*="address" i]',
+      'input[name*="city" i]',
+      'input[name*="zip" i]',
+      'input[name*="postal" i]',
+      'input[type="email"]',
+      'input[type="tel"]',
+    ];
+
+    for (
+      const selector of checkoutSelectors
+    ) {
+      const locator =
+        this.page
+          .locator(selector)
+          .first();
+
+      const count =
+        await locator
+          .count()
+          .catch(() => 0);
+
+      let visible = false;
+      let value = '';
+      let expanded:
+        string | null = null;
+
+      if (count > 0) {
+        visible =
+          await locator
+            .isVisible()
+            .catch(() => false);
+
+        expanded =
+          await locator
+            .getAttribute(
+              'aria-expanded'
+            )
+            .catch(() => null);
+
+        const tagName =
+          await locator
+            .evaluate(
+              (el) =>
+                el.tagName
+                  .toLowerCase()
+            )
+            .catch(() => '');
+
+        if (
+          tagName === 'input' ||
+          tagName === 'textarea'
+        ) {
+          value =
+            await locator
+              .inputValue({
+                timeout: 1000,
+              })
+              .catch(() => '');
+        }
+      }
+
+      console.log(
+        `[CHECKOUT] ${selector}`,
+        {
+          count,
+          visible,
+          expanded,
+          value,
+        }
+      );
+    }
+
+    const bodyText =
+      (
+        await this.page
+          .locator('body')
+          .innerText({
+            timeout: 2000,
+          })
+          .catch(() => '')
+      )
+        .replace(/\s+/g, ' ')
+        .slice(0, 2000);
+
+    console.log(
+      'Checkout body preview:',
+      bodyText
+    );
+
+    console.log(
+      '===== END CHECKOUT STATE DEBUG ====='
+    );
 
     throw new Error(
       'Shipping form is not visible and existing shipping state could not be detected'

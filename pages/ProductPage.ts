@@ -369,29 +369,151 @@ export class ProductPage {
       'Scanning required PDP options'
     );
 
-    await this.selectAvailableDropdownOptions();
+    const maxPasses = 8;
 
-    await this.selectAvailableSwatchOption();
+    for (
+      let pass = 1;
+      pass <= maxPasses;
+      pass++
+    ) {
+      console.log(
+        `PDP option selection pass ${pass}/${maxPasses}`
+      );
+
+      if (
+        await this.isAddToCartCurrentlyEnabled()
+      ) {
+        console.log(
+          'Add to Cart is already enabled'
+        );
+
+        return;
+      }
+
+      let changed = false;
+
+      const dropdownChanged =
+        await this.selectAvailableDropdownOptions();
+
+      if (dropdownChanged) {
+        changed = true;
+      }
+
+      if (
+        await this.isAddToCartCurrentlyEnabled()
+      ) {
+        console.log(
+          'Add to Cart enabled after dropdown selection'
+        );
+
+        return;
+      }
+
+      const swatchChanged =
+        await this.selectAvailableSwatchOptions();
+
+      if (swatchChanged) {
+        changed = true;
+      }
+
+      await this.page.waitForTimeout(500);
+
+      if (
+        await this.isAddToCartCurrentlyEnabled()
+      ) {
+        console.log(
+          'Add to Cart enabled after product option selection'
+        );
+
+        return;
+      }
+
+      if (!changed) {
+        console.log(
+          'No additional PDP option could be selected during this pass'
+        );
+
+        break;
+      }
+    }
 
     console.log(
-      'PDP option scan completed'
+      'PDP option scan completed but Add to Cart is still disabled'
+    );
+
+    await this.logPdpOptionDiagnostics();
+  }
+
+  private async isAddToCartCurrentlyEnabled(): Promise<boolean> {
+    const visible =
+      await this.addToCartButton
+        .isVisible()
+        .catch(() => false);
+
+    if (!visible) {
+      return false;
+    }
+
+    const disabled =
+      await this.addToCartButton
+        .isDisabled()
+        .catch(() => true);
+
+    const ariaDisabled =
+      await this.addToCartButton
+        .getAttribute('aria-disabled')
+        .catch(() => null);
+
+    return (
+      !disabled &&
+      ariaDisabled !== 'true'
     );
   }
 
-  private async selectAvailableDropdownOptions(): Promise<void> {
+  private async selectAvailableDropdownOptions(): Promise<boolean> {
     const selects =
       await this.getRequiredSelects();
 
-    for (const select of selects) {
-      const options = select.locator('option');
+    let changed = false;
 
-      const optionCount =
-        await options.count();
+    for (const select of selects) {
+      const visible =
+        await select
+          .isVisible()
+          .catch(() => false);
+
+      if (!visible) {
+        continue;
+      }
 
       const currentValue =
         await select
           .inputValue()
           .catch(() => '');
+
+      const currentText = (
+        await select
+          .locator('option:checked')
+          .innerText()
+          .catch(() => '')
+      )
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      if (
+        currentValue &&
+        !/select|choose|please|pick an option/i.test(
+          currentText
+        )
+      ) {
+        continue;
+      }
+
+      const options =
+        select.locator('option');
+
+      const optionCount =
+        await options.count();
 
       for (
         let optionIndex = 0;
@@ -402,8 +524,7 @@ export class ProductPage {
           options.nth(optionIndex);
 
         const value =
-          (await option.getAttribute('value')) ??
-          '';
+          (await option.getAttribute('value')) ?? '';
 
         const text = (
           await option
@@ -434,56 +555,219 @@ export class ProductPage {
           continue;
         }
 
-        if (value === currentValue) {
+        if (
+          /sold out|out of stock|unavailable/i.test(
+            text
+          )
+        ) {
           continue;
         }
 
         console.log(
-          `Selecting PDP dropdown option: ${text}`
+          `Selecting PDP dropdown option: "${text}"`
         );
 
         await select.selectOption(value);
 
+        await this.page.waitForTimeout(500);
+
+        changed = true;
+
         break;
       }
+
+      if (
+        await this.isAddToCartCurrentlyEnabled()
+      ) {
+        return true;
+      }
     }
+
+    return changed;
   }
 
-  private async selectAvailableSwatchOption(): Promise<void> {
-    const optionControls =
+  private async selectAvailableSwatchOptions(): Promise<boolean> {
+    let changed = false;
+
+    const radioGroups =
       this.productArea.locator(
         [
-          '[role="radio"]:visible:not([aria-disabled="true"])',
-          'input[type="radio"]:visible:not([disabled])',
-          '[class*="swatch" i] button:visible:not([disabled])',
-          '[class*="variant" i] button:visible:not([disabled])',
-          '[class*="product-option" i] button:visible:not([disabled])',
+          '[role="radiogroup"]:visible',
+          'fieldset:visible',
         ].join(',')
       );
 
-    const count = Math.min(
-      await optionControls.count(),
-      40
-    );
+    const groupCount =
+      Math.min(
+        await radioGroups.count(),
+        30
+      );
 
-    for (let i = 0; i < count; i++) {
-      const control =
-        optionControls.nth(i);
+    for (
+      let groupIndex = 0;
+      groupIndex < groupCount;
+      groupIndex++
+    ) {
+      const group =
+        radioGroups.nth(groupIndex);
+
+      const metadata =
+        await this.getElementMetadata(group);
 
       if (
-        !(await control
-          .isVisible()
-          .catch(() => false))
+        this.isGlobalControl(metadata)
       ) {
         continue;
       }
 
+      const groupText = (
+        await group
+          .innerText()
+          .catch(() => '')
+      )
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      if (
+        /quantity|shipping|delivery|wishlist|payment|review|search|newsletter/i.test(
+          groupText
+        )
+      ) {
+        continue;
+      }
+
+      const alreadySelected =
+        group.locator(
+          [
+            '[role="radio"][aria-checked="true"]',
+            'input[type="radio"]:checked',
+            'button[aria-pressed="true"]',
+          ].join(',')
+        );
+
+      if (
+        (await alreadySelected.count()) > 0
+      ) {
+        continue;
+      }
+
+      const candidates =
+        group.locator(
+          [
+            '[role="radio"]:not([aria-disabled="true"])',
+            'input[type="radio"]:not([disabled])',
+            'button:not([disabled])',
+          ].join(',')
+        );
+
+      const candidateCount =
+        Math.min(
+          await candidates.count(),
+          30
+        );
+
+      for (
+        let i = 0;
+        i < candidateCount;
+        i++
+      ) {
+        const control =
+          candidates.nth(i);
+
+        const visible =
+          await control
+            .isVisible()
+            .catch(() => false);
+
+        if (!visible) {
+          continue;
+        }
+
+        const text = (
+          await control
+            .innerText()
+            .catch(() => '')
+        )
+          .replace(/\s+/g, ' ')
+          .trim();
+
+        const ariaLabel =
+          (await control.getAttribute('aria-label')) ?? '';
+
+        const title =
+          (await control.getAttribute('title')) ?? '';
+
+        const combined =
+          `${text} ${ariaLabel} ${title}`
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        if (
+          /add to cart|add to bag|checkout|quantity|wishlist|favorite|menu|search|account|affiliate|site/i.test(
+            combined
+          )
+        ) {
+          continue;
+        }
+
+        if (
+          /sold out|out of stock|unavailable/i.test(
+            combined
+          )
+        ) {
+          continue;
+        }
+
+        console.log(
+          `Selecting PDP grouped option: "${
+            combined || 'unnamed option'
+          }"`
+        );
+
+        await control.click();
+
+        await this.page.waitForTimeout(500);
+
+        changed = true;
+
+        break;
+      }
+
+      if (
+        await this.isAddToCartCurrentlyEnabled()
+      ) {
+        return true;
+      }
+    }
+
+    const looseControls =
+      this.productArea.locator(
+        [
+          '[class*="swatch" i] button:visible:not([disabled])',
+          '[class*="variant" i] button:visible:not([disabled])',
+          '[class*="product-option" i] button:visible:not([disabled])',
+          '[role="radio"]:visible:not([aria-disabled="true"])',
+          'label:visible',
+        ].join(',')
+      );
+
+    const looseCount =
+      Math.min(
+        await looseControls.count(),
+        80
+      );
+
+    for (
+      let i = 0;
+      i < looseCount;
+      i++
+    ) {
+      const control =
+        looseControls.nth(i);
+
       const checked =
-        (await control.getAttribute(
-          'aria-checked'
-        )) === 'true' ||
-        (await control.getAttribute('checked')) !==
-          null;
+        (await control.getAttribute('aria-checked')) === 'true' ||
+        (await control.getAttribute('aria-pressed')) === 'true';
 
       if (checked) {
         continue;
@@ -498,17 +782,30 @@ export class ProductPage {
         .trim();
 
       const ariaLabel =
-        (await control.getAttribute(
-          'aria-label'
-        )) ?? '';
+        (await control.getAttribute('aria-label')) ?? '';
+
+      const title =
+        (await control.getAttribute('title')) ?? '';
 
       const combined =
-        `${text} ${ariaLabel}`
+        `${text} ${ariaLabel} ${title}`
           .replace(/\s+/g, ' ')
           .trim();
 
+      if (!combined) {
+        continue;
+      }
+
       if (
-        /add to cart|add to bag|checkout|quantity|wishlist|favorite|menu|search|account|affiliate|site/i.test(
+        /add to cart|add to bag|checkout|quantity|wishlist|favorite|menu|search|account|affiliate|site|shipping|delivery/i.test(
+          combined
+        )
+      ) {
+        continue;
+      }
+
+      if (
+        /sold out|out of stock|unavailable/i.test(
           combined
         )
       ) {
@@ -516,13 +813,135 @@ export class ProductPage {
       }
 
       console.log(
-        `Selecting PDP option control: "${combined || 'unnamed option'}"`
+        `Trying PDP loose option: "${combined}"`
       );
 
-      await control.click();
+      await control
+        .click()
+        .catch(() => undefined);
 
-      return;
+      await this.page.waitForTimeout(400);
+
+      if (
+        await this.isAddToCartCurrentlyEnabled()
+      ) {
+        console.log(
+          `Add to Cart enabled after selecting "${combined}"`
+        );
+
+        return true;
+      }
+
+      changed = true;
     }
+
+    return changed;
+  }
+
+  private async logPdpOptionDiagnostics(): Promise<void> {
+    const selects =
+      this.productArea.locator('select:visible');
+
+    const selectCount =
+      Math.min(
+        await selects.count(),
+        20
+      );
+
+    console.log(
+      `Visible PDP selects: ${selectCount}`
+    );
+
+    for (
+      let i = 0;
+      i < selectCount;
+      i++
+    ) {
+      const select =
+        selects.nth(i);
+
+      const metadata =
+        await this.getElementMetadata(select);
+
+      const value =
+        await select
+          .inputValue()
+          .catch(() => '');
+
+      const selectedText = (
+        await select
+          .locator('option:checked')
+          .innerText()
+          .catch(() => '')
+      )
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      console.log(
+        `Select ${i + 1}: metadata="${metadata}", value="${value}", selected="${selectedText}"`
+      );
+    }
+
+    const possibleOptions =
+      this.productArea.locator(
+        [
+          '[role="radio"]:visible',
+          'input[type="radio"]',
+          '[class*="swatch" i] button:visible',
+          '[class*="variant" i] button:visible',
+          '[class*="product-option" i] button:visible',
+          'label:visible',
+        ].join(',')
+      );
+
+    const optionCount =
+      Math.min(
+        await possibleOptions.count(),
+        80
+      );
+
+    console.log(
+      `Visible/possible PDP option controls: ${optionCount}`
+    );
+
+    for (
+      let i = 0;
+      i < optionCount;
+      i++
+    ) {
+      const option =
+        possibleOptions.nth(i);
+
+      const text = (
+        await option
+          .innerText()
+          .catch(() => '')
+      )
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      const aria =
+        (await option.getAttribute('aria-label')) ?? '';
+
+      const disabled =
+        await option
+          .isDisabled()
+          .catch(() => false);
+
+      if (text || aria) {
+        console.log(
+          `Option ${i + 1}: "${text || aria}", disabled=${disabled}`
+        );
+      }
+    }
+
+    console.log(
+      `Add to Cart disabled: ${
+        await this.addToCartButton
+          .isDisabled()
+          .catch(() => true)
+      }`
+    );
   }
 
   async addToCart(): Promise<void> {
