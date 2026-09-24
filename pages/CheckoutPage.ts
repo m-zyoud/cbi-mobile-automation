@@ -337,16 +337,66 @@ export class CheckoutPage {
   }
 
   async continueToDeliveryMethod(): Promise<void> {
-    if (
-      await this.deliverySection
-        .isVisible()
-        .catch(() => false)
-    ) {
+    if (await this.isPaymentVisible()) {
       return;
     }
 
-    if (await this.isPaymentVisible()) {
+    const shippingHeader = this.page
+      .locator('[id^="accordion__header-step1-"]')
+      .first();
+
+    const deliveryHeader = this.page
+      .locator('[id^="accordion__header-step2-"]')
+      .first();
+
+    const paymentHeader = this.page
+      .locator('[id^="accordion__header-step3-"]')
+      .first();
+
+    const paymentExpanded =
+      await paymentHeader
+        .getAttribute('aria-expanded')
+        .catch(() => null);
+
+    if (paymentExpanded === 'true') {
       return;
+    }
+
+    const deliveryExpanded =
+      await deliveryHeader
+        .getAttribute('aria-expanded')
+        .catch(() => null);
+
+    if (deliveryExpanded === 'true') {
+      console.log('Delivery Method step is already open');
+      return;
+    }
+
+    const shippingExpanded =
+      await shippingHeader
+        .getAttribute('aria-expanded')
+        .catch(() => null);
+
+    if (shippingExpanded !== 'true') {
+      throw new Error(
+        `Shipping step is not open and Delivery Method is not open (shipping=${shippingExpanded}, delivery=${deliveryExpanded})`
+      );
+    }
+
+    if (
+      await this.addressInput
+        .isVisible()
+        .catch(() => false)
+    ) {
+      await this.addressInput
+        .press('Escape')
+        .catch(() => undefined);
+
+      await this.addressInput
+        .press('Tab')
+        .catch(() => undefined);
+
+      await this.page.waitForTimeout(250);
     }
 
     await expect(
@@ -356,43 +406,122 @@ export class CheckoutPage {
       timeout: 10000,
     });
 
+    console.log('Clicking Continue To Delivery Method');
+
     const clicked =
       await this.continueDeliveryButton
-        .click({
-          timeout: 7000,
-        })
+        .click({ timeout: 5000 })
         .then(() => true)
         .catch(() => false);
 
     if (!clicked) {
-      await this.continueDeliveryButton.evaluate(
-        (element: HTMLElement) => {
-          element.click();
-        }
+      console.log(
+        'Normal shipping continuation click was blocked; retrying with force'
       );
+
+      await this.continueDeliveryButton.click({
+        timeout: 3000,
+        force: true,
+      });
     }
 
     await this.handleAddressVerification();
+
+    await expect
+      .poll(
+        async () => {
+          const paymentState =
+            await paymentHeader
+              .getAttribute('aria-expanded')
+              .catch(() => null);
+
+          if (paymentState === 'true') {
+            return 'payment';
+          }
+
+          const deliveryState =
+            await deliveryHeader
+              .getAttribute('aria-expanded')
+              .catch(() => null);
+
+          if (deliveryState === 'true') {
+            return 'delivery';
+          }
+
+          const deliveryOpenClass =
+            await this.page
+              .locator(
+                '[class*="checkout-accordion__step2"].c-accordion--is-open'
+              )
+              .first()
+              .isVisible()
+              .catch(() => false);
+
+          if (deliveryOpenClass) {
+            return 'delivery';
+          }
+
+          return 'shipping';
+        },
+        {
+          timeout: 15000,
+          intervals: [300, 500, 700, 1000],
+        }
+      )
+      .not.toBe('shipping');
+
+    const finalDeliveryState =
+      await deliveryHeader
+        .getAttribute('aria-expanded')
+        .catch(() => null);
+
+    if (finalDeliveryState === 'true') {
+      console.log(
+        'Delivery Method step opened successfully'
+      );
+    }
   }
 
   async handleAddressVerification(): Promise<void> {
-    if (
-      !(await this.addressVerificationHeading
-        .isVisible()
-        .catch(() => false))
-    ) {
+    const modalAppeared =
+      await this.keepOriginalAddressButton
+        .waitFor({
+          state: 'visible',
+          timeout: 3000,
+        })
+        .then(() => true)
+        .catch(() => false);
+
+    if (!modalAppeared) {
       return;
     }
 
-    await expect(
-      this.keepOriginalAddressButton
-    ).toBeVisible({
-      timeout: 5000,
-    });
+    console.log(
+      'Address verification modal detected'
+    );
+    console.log(
+      'Keeping original shipping address'
+    );
 
-    await this.keepOriginalAddressButton.click({
-      timeout: 5000,
-    });
+    const clicked =
+      await this.keepOriginalAddressButton
+        .click({ timeout: 5000 })
+        .then(() => true)
+        .catch(() => false);
+
+    if (!clicked) {
+      await this.keepOriginalAddressButton.click({
+        timeout: 3000,
+        force: true,
+      });
+    }
+
+    await this.keepOriginalAddressButton
+      .waitFor({
+        state: 'hidden',
+        timeout: 10000,
+      })
+      .catch(() => undefined);
   }
 
   async verifyDeliveryMethodLoaded(): Promise<void> {
@@ -400,26 +529,49 @@ export class CheckoutPage {
       return;
     }
 
-    const deliveryButton = this.page
-      .getByRole('button')
-      .filter({
-        hasText:
-          /delivery method & gift options|delivery method/i,
-      })
+    const deliveryHeader = this.page
+      .locator('[id^="accordion__header-step2-"]')
       .first();
 
-    const visible =
-      (await this.deliverySection
-        .isVisible()
-        .catch(() => false)) ||
-      (await deliveryButton
-        .isVisible()
-        .catch(() => false));
+    const paymentHeader = this.page
+      .locator('[id^="accordion__header-step3-"]')
+      .first();
 
-    expect(
-      visible,
-      'Delivery Method section should be visible'
-    ).toBeTruthy();
+    await expect
+      .poll(
+        async () => {
+          const paymentExpanded =
+            await paymentHeader
+              .getAttribute('aria-expanded')
+              .catch(() => null);
+
+          if (paymentExpanded === 'true') {
+            return true;
+          }
+
+          const deliveryExpanded =
+            await deliveryHeader
+              .getAttribute('aria-expanded')
+              .catch(() => null);
+
+          if (deliveryExpanded === 'true') {
+            return true;
+          }
+
+          return this.page
+            .locator(
+              '[class*="checkout-accordion__step2"].c-accordion--is-open'
+            )
+            .first()
+            .isVisible()
+            .catch(() => false);
+        },
+        {
+          timeout: 15000,
+          intervals: [300, 500, 700, 1000],
+        }
+      )
+      .toBe(true);
   }
 
   async selectDeliveryMethodIfNeeded(): Promise<void> {
@@ -511,50 +663,362 @@ export class CheckoutPage {
   }
 
   async continueToPayment(): Promise<void> {
-    if (await this.isPaymentVisible()) {
-      return;
-    }
+  if (
+    await this.isPaymentVisible()
+  ) {
+    console.log(
+      'Payment step is already visible'
+    );
 
-    await this.verifyDeliveryMethodLoaded();
+    return;
+  }
 
-    await this.selectDeliveryMethodIfNeeded();
+  /*
+   * Delivery must already be open here.
+   * Shipping transition is handled by
+   * continueToDeliveryMethod().
+   */
+  await this.verifyDeliveryMethodLoaded();
 
-    if (
-      await this.continuePaymentButton
-        .isVisible()
-        .catch(() => false)
-    ) {
-      await this.continuePaymentButton.click({
-        timeout: 7000,
-      });
+  await this.selectDeliveryMethodIfNeeded();
 
-      return;
-    }
-
-    const fallback = this.page
-      .getByRole('button')
-      .filter({
-        hasText:
-          /continue.*payment|payment/i,
-      })
+  const deliveryHeader =
+    this.page
+      .locator(
+        '[id^="accordion__header-step2-"]'
+      )
       .first();
 
+  const paymentHeader =
+    this.page
+      .locator(
+        '[id^="accordion__header-step3-"]'
+      )
+      .first();
+
+  const deliveryExpanded =
+    await deliveryHeader
+      .getAttribute(
+        'aria-expanded'
+      )
+      .catch(() => null);
+
+  console.log(
+    `Delivery expanded before payment: ${deliveryExpanded}`
+  );
+
+  if (
+    deliveryExpanded !== 'true'
+  ) {
+    throw new Error(
+      'Delivery Method must be open before continuing to Payment'
+    );
+  }
+
+  const deliveryStep =
+    this.page
+      .locator(
+        '[class*="checkout-accordion__step2"]'
+      )
+      .first();
+
+  /*
+   * First try the most likely dedicated
+   * continuation controls directly.
+   *
+   * Do NOT scan product controls first.
+   */
+  const directCandidates = [
+    deliveryStep
+      .getByRole('button', {
+        name:
+          /continue\s*(to)?\s*payment/i,
+      })
+      .first(),
+
+    deliveryStep
+      .locator(
+        'button[data-analytics-name="next"]'
+      )
+      .first(),
+
+    deliveryStep
+      .locator(
+        'button[id*="next" i]'
+      )
+      .first(),
+
+    deliveryStep
+      .locator(
+        'button[class*="next" i]'
+      )
+      .first(),
+
+    deliveryStep
+      .locator(
+        'input[type="submit"]'
+      )
+      .first(),
+  ];
+
+  for (
+    const candidate of directCandidates
+  ) {
     if (
-      await fallback
+      !(await candidate
         .isVisible()
-        .catch(() => false)
+        .catch(() => false))
     ) {
-      await fallback.click({
-        timeout: 7000,
-      });
+      continue;
+    }
+
+    const text =
+      (
+        await candidate
+          .innerText()
+          .catch(() => '')
+      )
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const id =
+      (await candidate
+        .getAttribute('id')
+        .catch(() => null)) ?? '';
+
+    const analytics =
+      (await candidate
+        .getAttribute(
+          'data-analytics-name'
+        )
+        .catch(() => null)) ?? '';
+
+    console.log(
+      `Trying direct Delivery → Payment control: text="${text}" id="${id}" analytics="${analytics}"`
+    );
+
+    const clicked =
+      await candidate
+        .click({
+          timeout: 5000,
+        })
+        .then(() => true)
+        .catch(() => false);
+
+    if (!clicked) {
+      const forceClicked =
+        await candidate
+          .click({
+            timeout: 3000,
+            force: true,
+          })
+          .then(() => true)
+          .catch(() => false);
+
+      if (!forceClicked) {
+        continue;
+      }
+    }
+
+    await this.page.waitForTimeout(
+      800
+    );
+
+    const paymentExpanded =
+      await paymentHeader
+        .getAttribute(
+          'aria-expanded'
+        )
+        .catch(() => null);
+
+    if (
+      paymentExpanded === 'true' ||
+      await this.isPaymentVisible()
+    ) {
+      console.log(
+        'Payment step reached successfully'
+      );
 
       return;
     }
-
-    throw new Error(
-      'Payment continuation control was not found'
-    );
   }
+
+  /*
+   * Fallback:
+   * scan ALL visible controls inside Delivery.
+   *
+   * Important:
+   * no 40-control limit here because the cart
+   * may contain many line items.
+   */
+  const controls =
+    deliveryStep.locator(
+      [
+        'button:visible',
+        'a:visible',
+        'input[type="submit"]:visible',
+        'input[type="button"]:visible',
+      ].join(',')
+    );
+
+  const controlCount =
+    await controls
+      .count()
+      .catch(() => 0);
+
+  console.log(
+    `Delivery continuation controls found: ${controlCount}`
+  );
+
+  for (
+    let i = 0;
+    i < controlCount;
+    i++
+  ) {
+    const control =
+      controls.nth(i);
+
+    const text =
+      (
+        await control
+          .innerText()
+          .catch(() => '')
+      )
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const value =
+      (await control
+        .getAttribute('value')
+        .catch(() => null)) ?? '';
+
+    const aria =
+      (await control
+        .getAttribute('aria-label')
+        .catch(() => null)) ?? '';
+
+    const id =
+      (await control
+        .getAttribute('id')
+        .catch(() => null)) ?? '';
+
+    const analytics =
+      (await control
+        .getAttribute(
+          'data-analytics-name'
+        )
+        .catch(() => null)) ?? '';
+
+    const className =
+      (await control
+        .getAttribute('class')
+        .catch(() => null)) ?? '';
+
+    const combined =
+      `${text} ${value} ${aria} ${id} ${analytics}`
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    console.log(
+      `Delivery control ${i}: text="${text}" id="${id}" analytics="${analytics}"`
+    );
+
+    /*
+     * Ignore accordion header itself.
+     */
+    if (
+      /accordion__header/i.test(
+        className
+      ) ||
+      /expand_accordion/i.test(
+        analytics
+      )
+    ) {
+      continue;
+    }
+
+    /*
+     * Only accept continuation controls.
+     */
+    if (
+      !/continue.*payment|payment.*continue|continue.*billing|continue.*review|payment method|shipping.*next|delivery.*next|(^|\s)next($|\s)/i.test(
+        combined
+      )
+    ) {
+      continue;
+    }
+
+    console.log(
+      `Clicking Delivery → Payment control: "${combined}"`
+    );
+
+    const clicked =
+      await control
+        .click({
+          timeout: 5000,
+        })
+        .then(() => true)
+        .catch(() => false);
+
+    if (!clicked) {
+      const forceClicked =
+        await control
+          .click({
+            timeout: 3000,
+            force: true,
+          })
+          .then(() => true)
+          .catch(() => false);
+
+      if (!forceClicked) {
+        continue;
+      }
+    }
+
+    await this.page.waitForTimeout(
+      800
+    );
+
+    const paymentExpanded =
+      await paymentHeader
+        .getAttribute(
+          'aria-expanded'
+        )
+        .catch(() => null);
+
+    if (
+      paymentExpanded === 'true' ||
+      await this.isPaymentVisible()
+    ) {
+      console.log(
+        'Payment step reached successfully'
+      );
+
+      return;
+    }
+  }
+
+  /*
+   * Payment may sometimes open asynchronously.
+   */
+  await this.page.waitForTimeout(
+    800
+  );
+
+  if (
+    await this.isPaymentVisible()
+  ) {
+    console.log(
+      'Payment step became visible automatically'
+    );
+
+    return;
+  }
+
+  throw new Error(
+    `Payment continuation control was not found after scanning ${controlCount} Delivery controls`
+  );
+}
 
   async verifyPaymentStepLoaded(): Promise<void> {
     const visible =

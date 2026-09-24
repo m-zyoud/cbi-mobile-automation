@@ -449,98 +449,226 @@ export class CartPage {
   }
 
   async proceedToCheckout(): Promise<void> {
-    const itemCount =
-      await this.getCartItemCount();
-
-    if (itemCount <= 0) {
-      throw new Error(
-        'Cannot proceed to checkout because cart item count is zero'
-      );
-    }
-
-    const control =
-      await this.getCheckoutControl();
-
-      
-
-    if (!control) {
-      const checkoutControls =
-  this.page.locator(
-    [
-      'button:visible',
-      'a:visible',
-      'input[type="submit"]:visible',
-    ].join(',')
+  console.log(
+    'Proceeding to checkout'
   );
-
-const controlCount =
-  Math.min(
-    await checkoutControls.count(),
-    80
-  );
-
-console.log(
-  `Visible cart controls: ${controlCount}`
-);
-
-for (
-  let i = 0;
-  i < controlCount;
-  i++
-) {
-  const control =
-    checkoutControls.nth(i);
-
-  const text = (
-    await control
-      .innerText()
-      .catch(() => '')
-  )
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  const aria =
-    (await control
-      .getAttribute('aria-label')
-      .catch(() => null)) ?? '';
-
-  const id =
-    (await control
-      .getAttribute('id')
-      .catch(() => null)) ?? '';
-
-  const className =
-    (await control
-      .getAttribute('class')
-      .catch(() => null)) ?? '';
-
-  const href =
-    (await control
-      .getAttribute('href')
-      .catch(() => null)) ?? '';
-
-  const value =
-    (await control
-      .getAttribute('value')
-      .catch(() => null)) ?? '';
 
   console.log(
-    `[CART CONTROL ${i}] text="${text}" aria="${aria}" value="${value}" href="${href}" id="${id}" class="${className}"`
+    `URL before checkout: ${this.page.url()}`
   );
-}
-      throw new Error(
-        'Cart has items, but no visible checkout control was found'
+
+  /*
+   * Frontgate can show a promotional modal
+   * over the cart. Dismiss it before trying
+   * to click Checkout.
+   */
+  const dismissModal = async (): Promise<void> => {
+    const noThanks =
+      this.page
+        .getByRole(
+          'button',
+          {
+            name: /no thanks/i,
+          }
+        )
+        .first();
+
+    if (
+      await noThanks
+        .isVisible()
+        .catch(() => false)
+    ) {
+      console.log(
+        'Promotional modal detected'
       );
+
+      console.log(
+        'Dismissing modal with "No thanks"'
+      );
+
+      const clicked =
+        await noThanks
+          .click({
+            timeout: 3000,
+          })
+          .then(() => true)
+          .catch(() => false);
+
+      if (!clicked) {
+        await noThanks
+          .click({
+            timeout: 2000,
+            force: true,
+          })
+          .catch(() => undefined);
+      }
+
+      await this.page.waitForTimeout(
+        500
+      );
+
+      return;
     }
 
-    await control.scrollIntoViewIfNeeded();
+    /*
+     * Fallback in case the clickable element
+     * is not exposed as a semantic button.
+     */
+    const textFallback =
+      this.page
+        .locator(
+          '.m-modal-manager'
+        )
+        .getByText(
+          /^no thanks$/i
+        )
+        .first();
 
-    await control.click();
+    if (
+      await textFallback
+        .isVisible()
+        .catch(() => false)
+    ) {
+      console.log(
+        'Promotional modal detected through fallback selector'
+      );
 
-    await this.page.waitForLoadState(
-      'domcontentloaded'
+      await textFallback.click({
+        timeout: 2000,
+        force: true,
+      });
+
+      await this.page.waitForTimeout(
+        500
+      );
+    }
+  };
+
+  /*
+   * Dismiss any currently visible modal.
+   */
+  await dismissModal();
+
+  const checkoutControls =
+    this.page
+      .locator(
+        [
+          'button:visible',
+          'a:visible',
+          '[role="button"]:visible',
+          'input[type="submit"]:visible',
+          'input[type="button"]:visible',
+        ].join(',')
+      )
+      .filter({
+        hasText:
+          /checkout|checkout now|proceed to checkout|secure checkout/i,
+      });
+
+  const count =
+    await checkoutControls
+      .count()
+      .catch(() => 0);
+
+  if (count === 0) {
+    throw new Error(
+      'Cart has items, but no visible checkout control was found'
     );
   }
+
+  const control =
+    checkoutControls.first();
+
+  await control.scrollIntoViewIfNeeded();
+
+  /*
+   * A modal can appear after scrolling too,
+   * so dismiss again immediately before click.
+   */
+  await dismissModal();
+
+  const clicked =
+    await control
+      .click({
+        timeout: 7000,
+      })
+      .then(() => true)
+      .catch(() => false);
+
+  if (!clicked) {
+    /*
+     * Check one more time in case the modal
+     * appeared during the click attempt.
+     */
+    await dismissModal();
+
+    const retryClicked =
+      await control
+        .click({
+          timeout: 5000,
+        })
+        .then(() => true)
+        .catch(() => false);
+
+    if (!retryClicked) {
+      console.log(
+        'Normal checkout click was blocked; retrying with force'
+      );
+
+      await control.click({
+        timeout: 3000,
+        force: true,
+      });
+    }
+  }
+
+  /*
+   * Wait for checkout navigation.
+   */
+  await this.page
+    .waitForURL(
+      /SinglePageCheckoutView|checkout/i,
+      {
+        timeout: 20000,
+      }
+    )
+    .catch(() => undefined);
+
+  await this.page
+    .waitForLoadState(
+      'domcontentloaded',
+      {
+        timeout: 15000,
+      }
+    )
+    .catch(() => undefined);
+
+  console.log(
+    `URL after checkout: ${this.page.url()}`
+  );
+
+  console.log(
+    `Title after checkout: ${await this.page.title().catch(() => '')}`
+  );
+
+  const currentUrl =
+    this.page.url();
+
+  if (
+    !/SinglePageCheckoutView|checkout/i.test(
+      currentUrl
+    )
+  ) {
+    throw new Error(
+      `Checkout navigation did not succeed. Current URL: ${currentUrl}`
+    );
+  }
+
+  console.log(
+    'Checkout opened successfully'
+  );
+}
+
 
   async getCheckoutControl(): Promise<Locator | null> {
     if (
