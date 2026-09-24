@@ -88,6 +88,161 @@ export class CartPage {
       .first();
   }
 
+  /**
+   * E2E setup helper.
+   *
+   * Opens the current brand's cart, removes any products left by
+   * previous Android/CDP runs, verifies that the cart is empty,
+   * then returns to the requested site URL.
+   *
+   * This keeps a persistent real-Chrome session from growing the
+   * cart on every E2E execution.
+   */
+  async clearCartIfNeeded(
+    siteUrl: string
+  ): Promise<void> {
+    console.log(
+      'Preparing clean cart for E2E run'
+    );
+
+    const site =
+      new URL(siteUrl);
+
+    const cartUrl =
+      new URL(
+        '/ShoppingCartView',
+        site.origin
+      );
+
+    /*
+     * Preserve the certification bypass token when one is present.
+     */
+    const bypassToken =
+      site.searchParams.get(
+        'aka_bypass'
+      );
+
+    if (bypassToken) {
+      cartUrl.searchParams.set(
+        'aka_bypass',
+        bypassToken
+      );
+    }
+
+    await this.page.goto(
+      cartUrl.toString(),
+      {
+        waitUntil:
+          'domcontentloaded',
+        timeout: 30000,
+      }
+    );
+
+    await this.waitForCartReady();
+
+    /*
+     * Frontgate can show a promotional modal over the cart.
+     * Dismiss it before trying to remove line items.
+     */
+    const noThanks =
+      this.page
+        .getByRole(
+          'button',
+          {
+            name: /no thanks/i,
+          }
+        )
+        .first();
+
+    if (
+      await noThanks
+        .isVisible()
+        .catch(() => false)
+    ) {
+      console.log(
+        'Dismissing cart promotional modal before cleanup'
+      );
+
+      const dismissed =
+        await noThanks
+          .click({
+            timeout: 3000,
+          })
+          .then(() => true)
+          .catch(() => false);
+
+      if (!dismissed) {
+        await noThanks
+          .click({
+            timeout: 2000,
+            force: true,
+          })
+          .catch(() => undefined);
+      }
+
+      await this.page.waitForTimeout(
+        400
+      );
+    }
+
+    const alreadyEmpty =
+      await this.isCartEmpty();
+
+    if (alreadyEmpty) {
+      console.log(
+        'Cart is already empty'
+      );
+
+      await this.page.goto(
+        siteUrl,
+        {
+          waitUntil:
+            'domcontentloaded',
+          timeout: 30000,
+        }
+      );
+
+      return;
+    }
+
+    const before =
+      await this.getCartItemCount();
+
+    console.log(
+      `Cleaning existing cart before E2E run. Current count: ${before}`
+    );
+
+    await this.removeAllCartItems();
+
+    const empty =
+      await this.isCartEmpty();
+
+    const after =
+      await this.getCartItemCount();
+
+    console.log(
+      `Cart cleanup completed. Remaining count: ${after}`
+    );
+
+    expect(
+      empty,
+      'E2E cart cleanup should leave the cart empty'
+    ).toBeTruthy();
+
+    await this.page.goto(
+      siteUrl,
+      {
+        waitUntil:
+          'domcontentloaded',
+        timeout: 30000,
+      }
+    );
+
+    await this.page.waitForTimeout(
+      400
+    );
+  }
+
   async openCart(): Promise<void> {
     console.log(
       'Waiting for Add to Cart processing to finish'
@@ -1430,65 +1585,192 @@ export class CartPage {
   }
 
   // CART-016
+ 
   async removeFirstCartItem(): Promise<boolean> {
-    const item =
-      await this.getFirstCartItemContainer();
+  /*
+   * First try removing from the detected cart-item container.
+   */
+  const item =
+    await this.getFirstCartItemContainer();
 
-    if (!item) {
-      return false;
+  if (item) {
+    const remove =
+      item
+        .locator(
+          [
+            'button[aria-label*="remove" i]:visible',
+            'button[title*="remove" i]:visible',
+            'button[data-testid*="remove" i]:visible',
+            'button:has-text("Remove"):visible',
+            'a:has-text("Remove"):visible',
+            '[class*="remove" i] button:visible',
+            '[class*="remove" i] a:visible',
+          ].join(',')
+        )
+        .first();
+
+    if (
+      await remove
+        .isVisible()
+        .catch(() => false)
+    ) {
+      console.log(
+        'Removing cart item from detected item container'
+      );
+
+      const clicked =
+        await remove
+          .click({
+            timeout: 5000,
+          })
+          .then(() => true)
+          .catch(() => false);
+
+      if (!clicked) {
+        await remove.click({
+          timeout: 3000,
+          force: true,
+        });
+      }
+
+      await this.page.waitForTimeout(
+        250
+      );
+
+      return true;
     }
+  }
 
-    const remove = item
+  /*
+   * Frontgate fallback:
+   * look for any visible Remove action directly
+   * on the cart page.
+   */
+  const globalRemove =
+    this.page
       .locator(
         [
-          'button[aria-label*="remove" i]:visible',
-          'button[title*="remove" i]:visible',
-          'button[data-testid*="remove" i]:visible',
+          'main button[aria-label*="remove" i]:visible',
+          'main button[title*="remove" i]:visible',
+          'main button[data-testid*="remove" i]:visible',
+          'main button:has-text("Remove"):visible',
+          'main a:has-text("Remove"):visible',
           'button:has-text("Remove"):visible',
           'a:has-text("Remove"):visible',
-          '[class*="remove" i] button:visible',
-          '[class*="remove" i] a:visible',
         ].join(',')
       )
       .first();
 
-    if (
-      !(await remove
-        .isVisible()
-        .catch(() => false))
-    ) {
-      return false;
+  if (
+    await globalRemove
+      .isVisible()
+      .catch(() => false)
+  ) {
+    console.log(
+      'Removing cart item using global Frontgate fallback'
+    );
+
+    const clicked =
+      await globalRemove
+        .click({
+          timeout: 5000,
+        })
+        .then(() => true)
+        .catch(() => false);
+
+    if (!clicked) {
+      await globalRemove.click({
+        timeout: 3000,
+        force: true,
+      });
     }
 
-    await remove.click();
-
     await this.page.waitForTimeout(
-      700
+      800
     );
 
     return true;
   }
 
+  console.log(
+    'No visible cart Remove control was found'
+  );
+
+  return false;
+}
+
   // CART-017 / CART-018
   async isCartEmpty(): Promise<boolean> {
-    if (
-      await this.emptyMessage
-        .isVisible()
-        .catch(() => false)
-    ) {
-      return true;
-    }
-
-    const items =
-      await this.getVisibleCartItemCount();
-
-    return items === 0;
+  /*
+   * Strongest signal: explicit empty-cart message.
+   */
+  if (
+    await this.emptyMessage
+      .isVisible()
+      .catch(() => false)
+  ) {
+    return true;
   }
+
+  /*
+   * Use the real cart count before relying on
+   * visible line-item container detection.
+   *
+   * Frontgate can expose the cart quantity in
+   * the header even when our generic cart-row
+   * selectors do not match its current markup.
+   */
+  const roleCount =
+    await this.extractCountFromLocator(
+      this.cartCountControl
+    );
+
+  if (
+    roleCount !== null
+  ) {
+    return roleCount === 0;
+  }
+
+  const genericCount =
+    await this.extractCountFromLocator(
+      this.genericCountControl
+    );
+
+  if (
+    genericCount !== null
+  ) {
+    return genericCount === 0;
+  }
+
+  /*
+   * If Checkout is visible and enabled,
+   * the cart cannot be empty.
+   */
+  const checkout =
+    await this.getCheckoutControl();
+
+  if (
+    checkout &&
+    await checkout
+      .isVisible()
+      .catch(() => false)
+  ) {
+    return false;
+  }
+
+  /*
+   * Final fallback only.
+   */
+  const items =
+    await this.getVisibleCartItemCount();
+
+  return items === 0;
+}
 
   async removeAllCartItems(): Promise<void> {
     for (
       let attempt = 0;
-      attempt < 20;
+      attempt < 50;
       attempt++
     ) {
       if (
@@ -1501,11 +1783,15 @@ export class CartPage {
         await this.removeFirstCartItem();
 
       if (!removed) {
+        console.log(
+          `Cart cleanup could not remove item on attempt ${attempt + 1}`
+        );
+
         break;
       }
 
       await this.page.waitForTimeout(
-        500
+        200
       );
     }
 

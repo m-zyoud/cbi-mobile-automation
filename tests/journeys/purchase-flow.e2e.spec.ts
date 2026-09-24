@@ -114,6 +114,28 @@ test.describe(
           );
 
           /*
+           * E2E setup
+           * Clear stale cart state from the persistent
+           * Android Chrome session before product discovery.
+           */
+          await test.step(
+            `Prepare clean ${site.name} cart`,
+            async () => {
+              console.log(
+                `Preparing clean ${site.name} cart`
+              );
+
+              await cartPage.clearCartIfNeeded(
+                site.url
+              );
+
+              console.log(
+                `${site.name} cart is clean`
+              );
+            }
+          );
+
+          /*
            * SM-003
            * Discover and open a real product dynamically.
            */
