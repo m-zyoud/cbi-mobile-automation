@@ -1,8 +1,4 @@
-import {
-  expect,
-  Locator,
-  Page,
-} from '@playwright/test';
+import { expect, Locator, Page } from "@playwright/test";
 
 export class CartPage {
   readonly page: Page;
@@ -39,24 +35,22 @@ export class CartPage {
           'header a[aria-label*="shopping bag" i]:visible',
           '[data-testid*="cart" i][role="button"]:visible',
           'button[data-cs-override-id*="cart" i]:visible:not([data-cs-override-id="pdp_add_to_cart"])',
-        ].join(',')
+        ].join(","),
       )
       .first();
 
     this.cartHeading = page
-      .getByRole('heading', {
+      .getByRole("heading", {
         name: /shopping cart|shopping bag|cart/i,
       })
       .first();
 
     this.emptyMessage = page
-      .getByText(
-        /your cart is empty|your bag is empty|cart is empty/i
-      )
+      .getByText(/your cart is empty|your bag is empty|cart is empty/i)
       .first();
 
     this.cartCountControl = page
-      .getByRole('button', {
+      .getByRole("button", {
         name: /\d+\s+items?\s+in\s+the\s+cart/i,
       })
       .first();
@@ -71,18 +65,18 @@ export class CartPage {
           '[data-testid*="cart-count" i]:visible',
           '[data-testid*="bag-count" i]:visible',
           '[class*="minicart" i] [class*="count" i]:visible',
-        ].join(',')
+        ].join(","),
       )
       .first();
 
     this.checkoutButton = page
-      .getByRole('button', {
+      .getByRole("button", {
         name: /checkout|checkout now|proceed to checkout|secure checkout/i,
       })
       .first();
 
     this.checkoutLink = page
-      .getByRole('link', {
+      .getByRole("link", {
         name: /checkout|checkout now|proceed to checkout|secure checkout/i,
       })
       .first();
@@ -98,45 +92,26 @@ export class CartPage {
    * This keeps a persistent real-Chrome session from growing the
    * cart on every E2E execution.
    */
-  async clearCartIfNeeded(
-    siteUrl: string
-  ): Promise<void> {
-    console.log(
-      'Preparing clean cart for E2E run'
-    );
+  async clearCartIfNeeded(siteUrl: string): Promise<void> {
+    console.log("Preparing clean cart for E2E run");
 
-    const site =
-      new URL(siteUrl);
+    const site = new URL(siteUrl);
 
-    const cartUrl =
-      new URL(
-        '/ShoppingCartView',
-        site.origin
-      );
+    const cartUrl = new URL("/ShoppingCartView", site.origin);
 
     /*
      * Preserve the certification bypass token when one is present.
      */
-    const bypassToken =
-      site.searchParams.get(
-        'aka_bypass'
-      );
+    const bypassToken = site.searchParams.get("aka_bypass");
 
     if (bypassToken) {
-      cartUrl.searchParams.set(
-        'aka_bypass',
-        bypassToken
-      );
+      cartUrl.searchParams.set("aka_bypass", bypassToken);
     }
 
-    await this.page.goto(
-      cartUrl.toString(),
-      {
-        waitUntil:
-          'domcontentloaded',
-        timeout: 30000,
-      }
-    );
+    await this.page.goto(cartUrl.toString(), {
+      waitUntil: "domcontentloaded",
+      timeout: 30000,
+    });
 
     await this.waitForCartReady();
 
@@ -144,32 +119,21 @@ export class CartPage {
      * Frontgate can show a promotional modal over the cart.
      * Dismiss it before trying to remove line items.
      */
-    const noThanks =
-      this.page
-        .getByRole(
-          'button',
-          {
-            name: /no thanks/i,
-          }
-        )
-        .first();
+    const noThanks = this.page
+      .getByRole("button", {
+        name: /no thanks/i,
+      })
+      .first();
 
-    if (
-      await noThanks
-        .isVisible()
-        .catch(() => false)
-    ) {
-      console.log(
-        'Dismissing cart promotional modal before cleanup'
-      );
+    if (await noThanks.isVisible().catch(() => false)) {
+      console.log("Dismissing cart promotional modal before cleanup");
 
-      const dismissed =
-        await noThanks
-          .click({
-            timeout: 3000,
-          })
-          .then(() => true)
-          .catch(() => false);
+      const dismissed = await noThanks
+        .click({
+          timeout: 3000,
+        })
+        .then(() => true)
+        .catch(() => false);
 
       if (!dismissed) {
         await noThanks
@@ -180,73 +144,48 @@ export class CartPage {
           .catch(() => undefined);
       }
 
-      await this.page.waitForTimeout(
-        400
-      );
+      await this.page.waitForTimeout(400);
     }
 
-    const alreadyEmpty =
-      await this.isCartEmpty();
+    const alreadyEmpty = await this.isCartEmpty();
 
     if (alreadyEmpty) {
-      console.log(
-        'Cart is already empty'
-      );
+      console.log("Cart is already empty");
 
-      await this.page.goto(
-        siteUrl,
-        {
-          waitUntil:
-            'domcontentloaded',
-          timeout: 30000,
-        }
-      );
+      await this.page.goto(siteUrl, {
+        waitUntil: "domcontentloaded",
+        timeout: 30000,
+      });
 
       return;
     }
 
-    const before =
-      await this.getCartItemCount();
+    const before = await this.getCartItemCount();
 
     console.log(
-      `Cleaning existing cart before E2E run. Current count: ${before}`
+      `Cleaning existing cart before E2E run. Current count: ${before}`,
     );
 
     await this.removeAllCartItems();
 
-    const empty =
-      await this.isCartEmpty();
+    const empty = await this.isCartEmpty();
 
-    const after =
-      await this.getCartItemCount();
+    const after = await this.getCartItemCount();
 
-    console.log(
-      `Cart cleanup completed. Remaining count: ${after}`
-    );
+    console.log(`Cart cleanup completed. Remaining count: ${after}`);
 
-    expect(
-      empty,
-      'E2E cart cleanup should leave the cart empty'
-    ).toBeTruthy();
+    expect(empty, "E2E cart cleanup should leave the cart empty").toBeTruthy();
 
-    await this.page.goto(
-      siteUrl,
-      {
-        waitUntil:
-          'domcontentloaded',
-        timeout: 30000,
-      }
-    );
+    await this.page.goto(siteUrl, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000,
+    });
 
-    await this.page.waitForTimeout(
-      400
-    );
+    await this.page.waitForTimeout(400);
   }
 
   async openCart(): Promise<void> {
-    console.log(
-      'Waiting for Add to Cart processing to finish'
-    );
+    console.log("Waiting for Add to Cart processing to finish");
 
     await this.waitForAddToCartCompletion();
 
@@ -255,8 +194,7 @@ export class CartPage {
      * Prefer a real "View Cart" / "Shopping Bag" action inside
      * that sheet before interacting with the header.
      */
-    const openedFromConfirmation =
-      await this.tryOpenCartFromConfirmation();
+    const openedFromConfirmation = await this.tryOpenCartFromConfirmation();
 
     if (openedFromConfirmation) {
       await this.waitForCartReady();
@@ -270,91 +208,59 @@ export class CartPage {
      */
     await this.dismissTransientCartOverlay();
 
-    const trigger =
-      await this.getSafeCartTrigger();
+    const trigger = await this.getSafeCartTrigger();
 
     if (!trigger) {
-  console.log(
-    'No visible cart trigger found. Trying cart URL fallback.'
-  );
+      console.log("No visible cart trigger found. Trying cart URL fallback.");
 
-  const cartLink =
-    this.page
-      .locator(
-        [
-          'a[href*="ShoppingCartView"]',
-          'a[href*="/cart"]',
-          'a[href*="cart" i]',
-        ].join(',')
-      )
-      .first();
-
-  const cartHref =
-    await cartLink
-      .getAttribute('href')
-      .catch(() => null);
-
-  if (cartHref) {
-    const cartUrl =
-      new URL(
-        cartHref,
-        this.page.url()
-      ).toString();
-
-    console.log(
-      `Opening cart using discovered href: ${cartUrl}`
-    );
-
-    await this.page.goto(
-      cartUrl,
-      {
-        waitUntil:
-          'domcontentloaded',
-        timeout: 20000,
-      }
-    );
-
-    return;
-  }
-
-  /*
-   * Final CBI fallback.
-   * Use the current site's origin instead of hardcoding Frontgate.
-   */
-  const fallbackCartUrl =
-    new URL(
-      '/ShoppingCartView',
-      this.page.url()
-    );
-
-  console.log(
-    `Opening cart using fallback URL: ${fallbackCartUrl.toString()}`
-  );
-
-  await this.page.goto(
-    fallbackCartUrl.toString(),
-    {
-      waitUntil:
-        'domcontentloaded',
-      timeout: 20000,
-    }
-  );
-
-  return;
-}
-
-    const tagName =
-      await trigger
-        .evaluate(
-          (element) =>
-            element.tagName.toLowerCase()
+      const cartLink = this.page
+        .locator(
+          [
+            'a[href*="ShoppingCartView"]',
+            'a[href*="/cart"]',
+            'a[href*="cart" i]',
+          ].join(","),
         )
-        .catch(() => '');
+        .first();
 
-    const href =
-      await trigger
-        .getAttribute('href')
-        .catch(() => null);
+      const cartHref = await cartLink.getAttribute("href").catch(() => null);
+
+      if (cartHref) {
+        const cartUrl = new URL(cartHref, this.page.url()).toString();
+
+        console.log(`Opening cart using discovered href: ${cartUrl}`);
+
+        await this.page.goto(cartUrl, {
+          waitUntil: "domcontentloaded",
+          timeout: 20000,
+        });
+
+        return;
+      }
+
+      /*
+       * Final CBI fallback.
+       * Use the current site's origin instead of hardcoding Frontgate.
+       */
+      const fallbackCartUrl = new URL("/ShoppingCartView", this.page.url());
+
+      console.log(
+        `Opening cart using fallback URL: ${fallbackCartUrl.toString()}`,
+      );
+
+      await this.page.goto(fallbackCartUrl.toString(), {
+        waitUntil: "domcontentloaded",
+        timeout: 20000,
+      });
+
+      return;
+    }
+
+    const tagName = await trigger
+      .evaluate((element) => element.tagName.toLowerCase())
+      .catch(() => "");
+
+    const href = await trigger.getAttribute("href").catch(() => null);
 
     /*
      * For a normal anchor, navigate to its href directly.
@@ -362,34 +268,21 @@ export class CartPage {
      * is fading out and can still intercept pointer events.
      */
     if (
-      tagName === 'a' &&
+      tagName === "a" &&
       href &&
-      href !== '#' &&
-      !href.startsWith('javascript:')
+      href !== "#" &&
+      !href.startsWith("javascript:")
     ) {
-      const target =
-        new URL(
-          href,
-          this.page.url()
-        ).toString();
+      const target = new URL(href, this.page.url()).toString();
 
-      console.log(
-        `Opening cart URL: ${target}`
-      );
+      console.log(`Opening cart URL: ${target}`);
 
-      await this.page.goto(
-        target,
-        {
-          waitUntil:
-            'domcontentloaded',
-          timeout: 60000,
-        }
-      );
+      await this.page.goto(target, {
+        waitUntil: "domcontentloaded",
+        timeout: 60000,
+      });
     } else {
-      await expect(
-        trigger,
-        'Cart trigger should be visible'
-      ).toBeVisible({
+      await expect(trigger, "Cart trigger should be visible").toBeVisible({
         timeout: 10000,
       });
 
@@ -398,9 +291,7 @@ export class CartPage {
       });
 
       await this.page
-        .waitForLoadState(
-          'domcontentloaded'
-        )
+        .waitForLoadState("domcontentloaded")
         .catch(() => undefined);
     }
 
@@ -408,45 +299,27 @@ export class CartPage {
   }
 
   async verifyCartLoaded(): Promise<void> {
-    if (
-      await this.cartHeading
-        .isVisible()
-        .catch(() => false)
-    ) {
+    if (await this.cartHeading.isVisible().catch(() => false)) {
       return;
     }
 
-    if (
-      await this.emptyMessage
-        .isVisible()
-        .catch(() => false)
-    ) {
+    if (await this.emptyMessage.isVisible().catch(() => false)) {
       return;
     }
 
-    const items =
-      await this.getVisibleCartItemCount();
+    const items = await this.getVisibleCartItemCount();
 
     if (items > 0) {
       return;
     }
 
-    const checkout =
-      await this.getCheckoutControl();
+    const checkout = await this.getCheckoutControl();
 
-    if (
-      checkout &&
-      await checkout
-        .isVisible()
-        .catch(() => false)
-    ) {
+    if (checkout && (await checkout.isVisible().catch(() => false))) {
       return;
     }
 
-    await expect(
-      this.cartHeading,
-      'Cart page should be loaded'
-    ).toBeVisible({
+    await expect(this.cartHeading, "Cart page should be loaded").toBeVisible({
       timeout: 10000,
     });
   }
@@ -454,75 +327,47 @@ export class CartPage {
   async verifyCartNotEmpty(): Promise<void> {
     await this.verifyCartLoaded();
 
-    const isEmpty =
-      await this.emptyMessage
-        .isVisible()
-        .catch(() => false);
+    const isEmpty = await this.emptyMessage.isVisible().catch(() => false);
 
-    expect(
-      isEmpty,
-      'Cart should not be empty'
-    ).toBeFalsy();
+    expect(isEmpty, "Cart should not be empty").toBeFalsy();
 
-    const count =
-      await this.getCartItemCount();
+    const count = await this.getCartItemCount();
 
-    expect(
-      count,
-      'Cart should contain at least one item'
-    ).toBeGreaterThan(0);
+    expect(count, "Cart should contain at least one item").toBeGreaterThan(0);
   }
 
   async verifyEmptyCartIfVisible(): Promise<void> {
-    if (
-      await this.emptyMessage
-        .isVisible()
-        .catch(() => false)
-    ) {
-      await expect(
-        this.emptyMessage
-      ).toBeVisible();
+    if (await this.emptyMessage.isVisible().catch(() => false)) {
+      await expect(this.emptyMessage).toBeVisible();
     }
   }
 
   async getCartItemCount(): Promise<number> {
-    const roleCount =
-      await this.extractCountFromLocator(
-        this.cartCountControl
-      );
+    const roleCount = await this.extractCountFromLocator(this.cartCountControl);
 
     if (roleCount !== null) {
       return roleCount;
     }
 
-    const ariaCount =
-      await this.extractCountFromLocator(
-        this.genericCountControl
-      );
+    const ariaCount = await this.extractCountFromLocator(
+      this.genericCountControl,
+    );
 
     if (ariaCount !== null) {
       return ariaCount;
     }
 
-    const headingText = (
-      await this.cartHeading
-        .innerText()
-        .catch(() => '')
-    )
-      .replace(/\s+/g, ' ')
+    const headingText = (await this.cartHeading.innerText().catch(() => ""))
+      .replace(/\s+/g, " ")
       .trim();
 
-    const headingCount =
-      this.extractCountFromText(
-        headingText
-      );
+    const headingCount = this.extractCountFromText(headingText);
 
     if (headingCount !== null) {
       return headingCount;
     }
 
-    const visibleItems =
-      await this.getVisibleCartItemCount();
+    const visibleItems = await this.getVisibleCartItemCount();
 
     if (visibleItems > 0) {
       return visibleItems;
@@ -536,23 +381,15 @@ export class CartPage {
      * separately by verifyProductInCart(), so this does not replace
      * the same-product assertion.
      */
-    const empty =
-      await this.emptyMessage
-        .isVisible()
-        .catch(() => false);
+    const empty = await this.emptyMessage.isVisible().catch(() => false);
 
     if (!empty) {
-      const checkout =
-        await this.getCheckoutControl();
+      const checkout = await this.getCheckoutControl();
 
       if (
         checkout &&
-        await checkout
-          .isVisible()
-          .catch(() => false) &&
-        !(await checkout
-          .isDisabled()
-          .catch(() => false))
+        (await checkout.isVisible().catch(() => false)) &&
+        !(await checkout.isDisabled().catch(() => false))
       ) {
         return 1;
       }
@@ -561,23 +398,17 @@ export class CartPage {
     return 0;
   }
 
-  async verifyProductInCart(
-    productName: string
-  ): Promise<void> {
-    const count =
-      await this.getCartItemCount();
+  async verifyProductInCart(productName: string): Promise<void> {
+    const count = await this.getCartItemCount();
 
-    expect(
-      count,
-      'Cart should contain at least one item'
-    ).toBeGreaterThan(0);
+    expect(count, "Cart should contain at least one item").toBeGreaterThan(0);
 
     if (!productName) {
       return;
     }
 
     const product = this.page
-      .locator('main')
+      .locator("main")
       .getByText(productName, {
         exact: false,
       })
@@ -585,285 +416,210 @@ export class CartPage {
 
     await expect(
       product,
-      `Product "${productName}" should appear in cart`
+      `Product "${productName}" should appear in cart`,
     ).toBeVisible();
   }
 
   async verifyCheckoutAvailable(): Promise<void> {
-    const control =
-      await this.getCheckoutControl();
+    const control = await this.getCheckoutControl();
 
     expect(
       control,
-      'Checkout control should be available when cart has items'
+      "Checkout control should be available when cart has items",
     ).not.toBeNull();
 
-    await expect(
-      control!
-    ).toBeVisible();
+    await expect(control!).toBeVisible();
   }
 
   async proceedToCheckout(): Promise<void> {
-  console.log(
-    'Proceeding to checkout'
-  );
+    console.log("Proceeding to checkout");
 
-  console.log(
-    `URL before checkout: ${this.page.url()}`
-  );
+    console.log(`URL before checkout: ${this.page.url()}`);
 
-  /*
-   * Frontgate can show a promotional modal
-   * over the cart. Dismiss it before trying
-   * to click Checkout.
-   */
-  const dismissModal = async (): Promise<void> => {
-    const noThanks =
-      this.page
-        .getByRole(
-          'button',
-          {
-            name: /no thanks/i,
-          }
-        )
+    /*
+     * Frontgate can show a promotional modal
+     * over the cart. Dismiss it before trying
+     * to click Checkout.
+     */
+    const dismissModal = async (): Promise<void> => {
+      const noThanks = this.page
+        .getByRole("button", {
+          name: /no thanks/i,
+        })
         .first();
 
-    if (
-      await noThanks
-        .isVisible()
-        .catch(() => false)
-    ) {
-      console.log(
-        'Promotional modal detected'
-      );
+      if (await noThanks.isVisible().catch(() => false)) {
+        console.log("Promotional modal detected");
 
-      console.log(
-        'Dismissing modal with "No thanks"'
-      );
+        console.log('Dismissing modal with "No thanks"');
 
-      const clicked =
-        await noThanks
+        const clicked = await noThanks
           .click({
             timeout: 3000,
           })
           .then(() => true)
           .catch(() => false);
 
-      if (!clicked) {
-        await noThanks
-          .click({
-            timeout: 2000,
-            force: true,
-          })
-          .catch(() => undefined);
+        if (!clicked) {
+          await noThanks
+            .click({
+              timeout: 2000,
+              force: true,
+            })
+            .catch(() => undefined);
+        }
+
+        await this.page.waitForTimeout(500);
+
+        return;
       }
 
-      await this.page.waitForTimeout(
-        500
-      );
-
-      return;
-    }
-
-    /*
-     * Fallback in case the clickable element
-     * is not exposed as a semantic button.
-     */
-    const textFallback =
-      this.page
-        .locator(
-          '.m-modal-manager'
-        )
-        .getByText(
-          /^no thanks$/i
-        )
+      /*
+       * Fallback in case the clickable element
+       * is not exposed as a semantic button.
+       */
+      const textFallback = this.page
+        .locator(".m-modal-manager")
+        .getByText(/^no thanks$/i)
         .first();
 
-    if (
-      await textFallback
-        .isVisible()
-        .catch(() => false)
-    ) {
-      console.log(
-        'Promotional modal detected through fallback selector'
-      );
+      if (await textFallback.isVisible().catch(() => false)) {
+        console.log("Promotional modal detected through fallback selector");
 
-      await textFallback.click({
-        timeout: 2000,
-        force: true,
-      });
+        await textFallback.click({
+          timeout: 2000,
+          force: true,
+        });
 
-      await this.page.waitForTimeout(
-        500
-      );
-    }
-  };
+        await this.page.waitForTimeout(500);
+      }
+    };
 
-  /*
-   * Dismiss any currently visible modal.
-   */
-  await dismissModal();
+    /*
+     * Dismiss any currently visible modal.
+     */
+    await dismissModal();
 
-  const checkoutControls =
-    this.page
+    const checkoutControls = this.page
       .locator(
         [
-          'button:visible',
-          'a:visible',
+          "button:visible",
+          "a:visible",
           '[role="button"]:visible',
           'input[type="submit"]:visible',
           'input[type="button"]:visible',
-        ].join(',')
+        ].join(","),
       )
       .filter({
-        hasText:
-          /checkout|checkout now|proceed to checkout|secure checkout/i,
+        hasText: /checkout|checkout now|proceed to checkout|secure checkout/i,
       });
 
-  const count =
-    await checkoutControls
-      .count()
-      .catch(() => 0);
+    const count = await checkoutControls.count().catch(() => 0);
 
-  if (count === 0) {
-    throw new Error(
-      'Cart has items, but no visible checkout control was found'
-    );
-  }
+    if (count === 0) {
+      throw new Error(
+        "Cart has items, but no visible checkout control was found",
+      );
+    }
 
-  const control =
-    checkoutControls.first();
+    const control = checkoutControls.first();
 
-  await control.scrollIntoViewIfNeeded();
+    await control.scrollIntoViewIfNeeded();
 
-  /*
-   * A modal can appear after scrolling too,
-   * so dismiss again immediately before click.
-   */
-  await dismissModal();
+    /*
+     * A modal can appear after scrolling too,
+     * so dismiss again immediately before click.
+     */
+    await dismissModal();
 
-  const clicked =
-    await control
+    const clicked = await control
       .click({
         timeout: 7000,
       })
       .then(() => true)
       .catch(() => false);
 
-  if (!clicked) {
-    /*
-     * Check one more time in case the modal
-     * appeared during the click attempt.
-     */
-    await dismissModal();
+    if (!clicked) {
+      /*
+       * Check one more time in case the modal
+       * appeared during the click attempt.
+       */
+      await dismissModal();
 
-    const retryClicked =
-      await control
+      const retryClicked = await control
         .click({
           timeout: 5000,
         })
         .then(() => true)
         .catch(() => false);
 
-    if (!retryClicked) {
-      console.log(
-        'Normal checkout click was blocked; retrying with force'
-      );
+      if (!retryClicked) {
+        console.log("Normal checkout click was blocked; retrying with force");
 
-      await control.click({
-        timeout: 3000,
-        force: true,
-      });
+        await control.click({
+          timeout: 3000,
+          force: true,
+        });
+      }
     }
-  }
 
-  /*
-   * Wait for checkout navigation.
-   */
-  await this.page
-    .waitForURL(
-      /SinglePageCheckoutView|checkout/i,
-      {
+    /*
+     * Wait for checkout navigation.
+     */
+    await this.page
+      .waitForURL(/SinglePageCheckoutView|checkout/i, {
         timeout: 20000,
-      }
-    )
-    .catch(() => undefined);
+      })
+      .catch(() => undefined);
 
-  await this.page
-    .waitForLoadState(
-      'domcontentloaded',
-      {
+    await this.page
+      .waitForLoadState("domcontentloaded", {
         timeout: 15000,
-      }
-    )
-    .catch(() => undefined);
+      })
+      .catch(() => undefined);
 
-  console.log(
-    `URL after checkout: ${this.page.url()}`
-  );
+    console.log(`URL after checkout: ${this.page.url()}`);
 
-  console.log(
-    `Title after checkout: ${await this.page.title().catch(() => '')}`
-  );
-
-  const currentUrl =
-    this.page.url();
-
-  if (
-    !/SinglePageCheckoutView|checkout/i.test(
-      currentUrl
-    )
-  ) {
-    throw new Error(
-      `Checkout navigation did not succeed. Current URL: ${currentUrl}`
+    console.log(
+      `Title after checkout: ${await this.page.title().catch(() => "")}`,
     );
+
+    const currentUrl = this.page.url();
+
+    if (!/SinglePageCheckoutView|checkout/i.test(currentUrl)) {
+      throw new Error(
+        `Checkout navigation did not succeed. Current URL: ${currentUrl}`,
+      );
+    }
+
+    console.log("Checkout opened successfully");
   }
-
-  console.log(
-    'Checkout opened successfully'
-  );
-}
-
 
   async getCheckoutControl(): Promise<Locator | null> {
-    if (
-      await this.checkoutButton
-        .isVisible()
-        .catch(() => false)
-    ) {
+    if (await this.checkoutButton.isVisible().catch(() => false)) {
       return this.checkoutButton;
     }
 
-    if (
-      await this.checkoutLink
-        .isVisible()
-        .catch(() => false)
-    ) {
+    if (await this.checkoutLink.isVisible().catch(() => false)) {
       return this.checkoutLink;
     }
 
-    const textCandidate =
-      this.page
-        .locator(
-          [
-            'button:visible',
-            'a:visible',
-            '[role="button"]:visible',
-            'input[type="submit"]:visible',
-            'input[type="button"]:visible',
-          ].join(',')
-        )
-        .filter({
-          hasText:
-            /checkout|checkout now|proceed to checkout|secure checkout/i,
-        })
-        .first();
+    const textCandidate = this.page
+      .locator(
+        [
+          "button:visible",
+          "a:visible",
+          '[role="button"]:visible',
+          'input[type="submit"]:visible',
+          'input[type="button"]:visible',
+        ].join(","),
+      )
+      .filter({
+        hasText: /checkout|checkout now|proceed to checkout|secure checkout/i,
+      })
+      .first();
 
-    if (
-      await textCandidate
-        .isVisible()
-        .catch(() => false)
-    ) {
+    if (await textCandidate.isVisible().catch(() => false)) {
       return textCandidate;
     }
 
@@ -872,8 +628,7 @@ export class CartPage {
 
   // CART-007
   async getFirstCartItemPrice(): Promise<string | null> {
-    const item =
-      await this.getFirstCartItemContainer();
+    const item = await this.getFirstCartItemContainer();
 
     if (!item) {
       return null;
@@ -885,47 +640,32 @@ export class CartPage {
           '[class*="price" i]:visible',
           '[data-testid*="price" i]:visible',
           '[aria-label*="price" i]:visible',
-        ].join(',')
+        ].join(","),
       )
       .first();
 
-    if (
-      !(await price
-        .isVisible()
-        .catch(() => false))
-    ) {
+    if (!(await price.isVisible().catch(() => false))) {
       return null;
     }
 
-    const text = (
-      await price
-        .innerText()
-        .catch(() => '')
-    )
-      .replace(/\s+/g, ' ')
+    const text = (await price.innerText().catch(() => ""))
+      .replace(/\s+/g, " ")
       .trim();
 
     return text || null;
   }
 
   async verifyFirstCartItemPriceVisible(): Promise<void> {
-    const price =
-      await this.getFirstCartItemPrice();
+    const price = await this.getFirstCartItemPrice();
 
-    expect(
-      price,
-      'Cart item price should be displayed'
-    ).not.toBeNull();
+    expect(price, "Cart item price should be displayed").not.toBeNull();
 
-    expect(
-      price!.length
-    ).toBeGreaterThan(0);
+    expect(price!.length).toBeGreaterThan(0);
   }
 
   // CART-008
   async getCartQuantityControl(): Promise<Locator | null> {
-    const item =
-      await this.getFirstCartItemContainer();
+    const item = await this.getFirstCartItemContainer();
 
     if (!item) {
       return null;
@@ -938,15 +678,11 @@ export class CartPage {
           'input[id*="quantity" i]:visible',
           'input[aria-label*="quantity" i]:visible',
           'input[type="number"]:visible',
-        ].join(',')
+        ].join(","),
       )
       .first();
 
-    if (
-      await input
-        .isVisible()
-        .catch(() => false)
-    ) {
+    if (await input.isVisible().catch(() => false)) {
       return input;
     }
 
@@ -956,15 +692,11 @@ export class CartPage {
           'select[name*="quantity" i]:visible',
           'select[id*="quantity" i]:visible',
           'select[aria-label*="quantity" i]:visible',
-        ].join(',')
+        ].join(","),
       )
       .first();
 
-    if (
-      await select
-        .isVisible()
-        .catch(() => false)
-    ) {
+    if (await select.isVisible().catch(() => false)) {
       return select;
     }
 
@@ -972,30 +704,22 @@ export class CartPage {
   }
 
   async getCartQuantity(): Promise<number | null> {
-    const control =
-      await this.getCartQuantityControl();
+    const control = await this.getCartQuantityControl();
 
     if (!control) {
       return null;
     }
 
-    const value =
-      await control
-        .inputValue()
-        .catch(() => '');
+    const value = await control.inputValue().catch(() => "");
 
-    const numeric =
-      Number(value);
+    const numeric = Number(value);
 
-    return Number.isNaN(numeric)
-      ? null
-      : numeric;
+    return Number.isNaN(numeric) ? null : numeric;
   }
 
   // CART-009
   async getSelectedCartOptions(): Promise<string[]> {
-    const item =
-      await this.getFirstCartItemContainer();
+    const item = await this.getFirstCartItemContainer();
 
     if (!item) {
       return [];
@@ -1008,13 +732,10 @@ export class CartPage {
         '[class*="attribute" i]:visible',
         '[data-testid*="option" i]:visible',
         '[data-testid*="variant" i]:visible',
-      ].join(',')
+      ].join(","),
     );
 
-    const count = Math.min(
-      await optionElements.count(),
-      30
-    );
+    const count = Math.min(await optionElements.count(), 30);
 
     const options: string[] = [];
 
@@ -1023,23 +744,16 @@ export class CartPage {
         await optionElements
           .nth(i)
           .innerText()
-          .catch(() => '')
+          .catch(() => "")
       )
-        .replace(/\s+/g, ' ')
+        .replace(/\s+/g, " ")
         .trim();
 
-      if (
-        !text ||
-        /quantity|remove|price|subtotal/i.test(
-          text
-        )
-      ) {
+      if (!text || /quantity|remove|price|subtotal/i.test(text)) {
         continue;
       }
 
-      if (
-        !options.includes(text)
-      ) {
+      if (!options.includes(text)) {
         options.push(text);
       }
     }
@@ -1049,8 +763,7 @@ export class CartPage {
 
   // CART-010
   async getCartProductIdentifier(): Promise<string | null> {
-    const item =
-      await this.getFirstCartItemContainer();
+    const item = await this.getFirstCartItemContainer();
 
     if (!item) {
       return null;
@@ -1064,24 +777,16 @@ export class CartPage {
           '[class*="product-id" i]:visible',
           '[data-testid*="product-id" i]:visible',
           '[class*="item-number" i]:visible',
-        ].join(',')
+        ].join(","),
       )
       .first();
 
-    if (
-      !(await sku
-        .isVisible()
-        .catch(() => false))
-    ) {
+    if (!(await sku.isVisible().catch(() => false))) {
       return null;
     }
 
-    const text = (
-      await sku
-        .innerText()
-        .catch(() => '')
-    )
-      .replace(/\s+/g, ' ')
+    const text = (await sku.innerText().catch(() => ""))
+      .replace(/\s+/g, " ")
       .trim();
 
     return text || null;
@@ -1089,15 +794,13 @@ export class CartPage {
 
   // CART-011
   async increaseCartQuantity(): Promise<boolean> {
-    const item =
-      await this.getFirstCartItemContainer();
+    const item = await this.getFirstCartItemContainer();
 
     if (!item) {
       return false;
     }
 
-    const before =
-      await this.getCartQuantity();
+    const before = await this.getCartQuantity();
 
     const increaseButton = item
       .locator(
@@ -1106,91 +809,56 @@ export class CartPage {
           'button[aria-label*="plus" i]:visible',
           'button[title*="increase" i]:visible',
           'button[data-testid*="increase" i]:visible',
-        ].join(',')
+        ].join(","),
       )
       .first();
 
-    if (
-      await increaseButton
-        .isVisible()
-        .catch(() => false)
-    ) {
+    if (await increaseButton.isVisible().catch(() => false)) {
       await increaseButton.click();
 
-      await this.page.waitForTimeout(
-        500
-      );
+      await this.page.waitForTimeout(500);
 
-      const after =
-        await this.getCartQuantity();
+      const after = await this.getCartQuantity();
 
-      if (
-        before !== null &&
-        after !== null
-      ) {
-        expect(after).toBeGreaterThan(
-          before
-        );
+      if (before !== null && after !== null) {
+        expect(after).toBeGreaterThan(before);
       }
 
       return true;
     }
 
-    const control =
-      await this.getCartQuantityControl();
+    const control = await this.getCartQuantityControl();
 
     if (!control) {
       return false;
     }
 
-    const tag =
-      await control.evaluate(
-        (element) =>
-          element.tagName.toLowerCase()
-      );
+    const tag = await control.evaluate((element) =>
+      element.tagName.toLowerCase(),
+    );
 
-    if (tag === 'select') {
-      const options =
-        control.locator('option');
+    if (tag === "select") {
+      const options = control.locator("option");
 
-      const count =
-        await options.count();
+      const count = await options.count();
 
-      const current =
-        await control.inputValue();
+      const current = await control.inputValue();
 
       for (let i = 0; i < count; i++) {
-        const option =
-          options.nth(i);
+        const option = options.nth(i);
 
-        const value =
-          (await option.getAttribute(
-            'value'
-          )) ?? '';
+        const value = (await option.getAttribute("value")) ?? "";
 
-        const numeric =
-          Number(value);
+        const numeric = Number(value);
 
-        if (
-          !Number.isNaN(numeric) &&
-          before !== null &&
-          numeric > before
-        ) {
-          await control.selectOption(
-            value
-          );
+        if (!Number.isNaN(numeric) && before !== null && numeric > before) {
+          await control.selectOption(value);
 
           return true;
         }
 
-        if (
-          before === null &&
-          value &&
-          value !== current
-        ) {
-          await control.selectOption(
-            value
-          );
+        if (before === null && value && value !== current) {
+          await control.selectOption(value);
 
           return true;
         }
@@ -1203,19 +871,14 @@ export class CartPage {
       return false;
     }
 
-    await control.fill(
-      String(before + 1)
-    );
+    await control.fill(String(before + 1));
 
     await control.blur();
 
-    const after =
-      await this.getCartQuantity();
+    const after = await this.getCartQuantity();
 
     if (after !== null) {
-      expect(after).toBeGreaterThan(
-        before
-      );
+      expect(after).toBeGreaterThan(before);
     }
 
     return true;
@@ -1223,20 +886,15 @@ export class CartPage {
 
   // CART-012
   async decreaseCartQuantity(): Promise<boolean> {
-    const item =
-      await this.getFirstCartItemContainer();
+    const item = await this.getFirstCartItemContainer();
 
     if (!item) {
       return false;
     }
 
-    const before =
-      await this.getCartQuantity();
+    const before = await this.getCartQuantity();
 
-    if (
-      before !== null &&
-      before <= 1
-    ) {
+    if (before !== null && before <= 1) {
       return false;
     }
 
@@ -1247,88 +905,56 @@ export class CartPage {
           'button[aria-label*="minus" i]:visible',
           'button[title*="decrease" i]:visible',
           'button[data-testid*="decrease" i]:visible',
-        ].join(',')
+        ].join(","),
       )
       .first();
 
-    if (
-      await decreaseButton
-        .isVisible()
-        .catch(() => false)
-    ) {
+    if (await decreaseButton.isVisible().catch(() => false)) {
       await decreaseButton.click();
 
-      await this.page.waitForTimeout(
-        500
-      );
+      await this.page.waitForTimeout(500);
 
-      const after =
-        await this.getCartQuantity();
+      const after = await this.getCartQuantity();
 
-      if (
-        before !== null &&
-        after !== null
-      ) {
-        expect(after).toBeLessThan(
-          before
-        );
+      if (before !== null && after !== null) {
+        expect(after).toBeLessThan(before);
       }
 
       return true;
     }
 
-    const control =
-      await this.getCartQuantityControl();
+    const control = await this.getCartQuantityControl();
 
-    if (
-      !control ||
-      before === null ||
-      before <= 1
-    ) {
+    if (!control || before === null || before <= 1) {
       return false;
     }
 
-    const tag =
-      await control.evaluate(
-        (element) =>
-          element.tagName.toLowerCase()
-      );
+    const tag = await control.evaluate((element) =>
+      element.tagName.toLowerCase(),
+    );
 
-    if (tag === 'select') {
-      const target =
-        String(before - 1);
+    if (tag === "select") {
+      const target = String(before - 1);
 
-      const exists =
-        await control
-          .locator(
-            `option[value="${target}"]`
-          )
-          .count();
+      const exists = await control.locator(`option[value="${target}"]`).count();
 
       if (exists === 0) {
         return false;
       }
 
-      await control.selectOption(
-        target
-      );
+      await control.selectOption(target);
 
       return true;
     }
 
-    await control.fill(
-      String(before - 1)
-    );
+    await control.fill(String(before - 1));
 
     await control.blur();
 
-    const after =
-      await this.getCartQuantity();
+    const after = await this.getCartQuantity();
 
     if (after !== null) {
-      expect(after).toBeLessThan(
-        before
-      );
+      expect(after).toBeLessThan(before);
     }
 
     return true;
@@ -1336,236 +962,162 @@ export class CartPage {
 
   // CART-013
   async verifyCartQuantityMinimum(): Promise<boolean> {
-    const control =
-      await this.getCartQuantityControl();
+    const control = await this.getCartQuantityControl();
 
     if (!control) {
       return false;
     }
 
-    const tag =
-      await control.evaluate(
-        (element) =>
-          element.tagName.toLowerCase()
-      );
+    const tag = await control.evaluate((element) =>
+      element.tagName.toLowerCase(),
+    );
 
-    if (tag === 'select') {
-      const values =
-        await control
-          .locator('option')
-          .evaluateAll(
-            (options) =>
-              options
-                .map(
-                  (option) =>
-                    Number(
-                      (
-                        option as HTMLOptionElement
-                      ).value
-                    )
-                )
-                .filter(
-                  (value) =>
-                    !Number.isNaN(value)
-                )
-          );
+    if (tag === "select") {
+      const values = await control
+        .locator("option")
+        .evaluateAll((options) =>
+          options
+            .map((option) => Number((option as HTMLOptionElement).value))
+            .filter((value) => !Number.isNaN(value)),
+        );
 
-      if (
-        values.length === 0
-      ) {
+      if (values.length === 0) {
         return false;
       }
 
-      expect(
-        Math.min(...values)
-      ).toBeGreaterThanOrEqual(1);
+      expect(Math.min(...values)).toBeGreaterThanOrEqual(1);
 
       return true;
     }
 
-    const minAttribute =
-      await control.getAttribute(
-        'min'
-      );
+    const minAttribute = await control.getAttribute("min");
 
     if (minAttribute) {
-      const min =
-        Number(minAttribute);
+      const min = Number(minAttribute);
 
-      expect(
-        min
-      ).toBeGreaterThanOrEqual(1);
+      expect(min).toBeGreaterThanOrEqual(1);
 
       return true;
     }
 
-    await control.fill('1');
+    await control.fill("1");
 
     await control.blur();
 
-    const value =
-      await this.getCartQuantity();
+    const value = await this.getCartQuantity();
 
     if (value === null) {
       return false;
     }
 
-    expect(
-      value
-    ).toBeGreaterThanOrEqual(1);
+    expect(value).toBeGreaterThanOrEqual(1);
 
     return true;
   }
 
   // CART-014
   async getCartQuantityMaximum(): Promise<number | null> {
-    const control =
-      await this.getCartQuantityControl();
+    const control = await this.getCartQuantityControl();
 
     if (!control) {
       return null;
     }
 
-    const tag =
-      await control.evaluate(
-        (element) =>
-          element.tagName.toLowerCase()
-      );
+    const tag = await control.evaluate((element) =>
+      element.tagName.toLowerCase(),
+    );
 
-    if (tag === 'select') {
-      const values =
-        await control
-          .locator('option')
-          .evaluateAll(
-            (options) =>
-              options
-                .map(
-                  (option) =>
-                    Number(
-                      (
-                        option as HTMLOptionElement
-                      ).value
-                    )
-                )
-                .filter(
-                  (value) =>
-                    !Number.isNaN(value)
-                )
-          );
+    if (tag === "select") {
+      const values = await control
+        .locator("option")
+        .evaluateAll((options) =>
+          options
+            .map((option) => Number((option as HTMLOptionElement).value))
+            .filter((value) => !Number.isNaN(value)),
+        );
 
-      if (
-        values.length === 0
-      ) {
+      if (values.length === 0) {
         return null;
       }
 
       return Math.max(...values);
     }
 
-    const max =
-      await control.getAttribute(
-        'max'
-      );
+    const max = await control.getAttribute("max");
 
     if (!max) {
       return null;
     }
 
-    const numeric =
-      Number(max);
+    const numeric = Number(max);
 
-    return Number.isNaN(numeric)
-      ? null
-      : numeric;
+    return Number.isNaN(numeric) ? null : numeric;
   }
 
-  async verifyCartQuantityMaximum(
-    max: number
-  ): Promise<void> {
-    const control =
-      await this.getCartQuantityControl();
+  async verifyCartQuantityMaximum(max: number): Promise<void> {
+    const control = await this.getCartQuantityControl();
 
     if (!control) {
-      throw new Error(
-        'Cart quantity control is not available'
-      );
+      throw new Error("Cart quantity control is not available");
     }
 
-    const tag =
-      await control.evaluate(
-        (element) =>
-          element.tagName.toLowerCase()
-      );
+    const tag = await control.evaluate((element) =>
+      element.tagName.toLowerCase(),
+    );
 
-    if (tag === 'select') {
-      const maximum =
-        await this.getCartQuantityMaximum();
+    if (tag === "select") {
+      const maximum = await this.getCartQuantityMaximum();
 
       expect(maximum).toBe(max);
 
       return;
     }
 
-    await control.fill(
-      String(max + 1)
-    );
+    await control.fill(String(max + 1));
 
     await control.blur();
 
-    const quantity =
-      await this.getCartQuantity();
+    const quantity = await this.getCartQuantity();
 
     if (quantity !== null) {
       expect(
         quantity,
-        'Cart quantity should not exceed enforced maximum'
+        "Cart quantity should not exceed enforced maximum",
       ).toBeLessThanOrEqual(max);
     }
   }
 
   // CART-015
   async verifyInvalidCartQuantityHandled(): Promise<boolean> {
-    const control =
-      await this.getCartQuantityControl();
+    const control = await this.getCartQuantityControl();
 
     if (!control) {
       return false;
     }
 
-    const tag =
-      await control.evaluate(
-        (element) =>
-          element.tagName.toLowerCase()
-      );
+    const tag = await control.evaluate((element) =>
+      element.tagName.toLowerCase(),
+    );
 
-    if (tag === 'select') {
+    if (tag === "select") {
       return false;
     }
 
-    await control.fill('-1');
+    await control.fill("-1");
 
     await control.blur();
 
-    await this.page.waitForTimeout(
-      300
-    );
+    await this.page.waitForTimeout(300);
 
-    const value =
-      await this.getCartQuantity();
+    const value = await this.getCartQuantity();
 
-    if (
-      value !== null &&
-      value >= 1
-    ) {
+    if (value !== null && value >= 1) {
       return true;
     }
 
-    const invalid =
-      await control.getAttribute(
-        'aria-invalid'
-      );
+    const invalid = await control.getAttribute("aria-invalid");
 
-    if (invalid === 'true') {
+    if (invalid === "true") {
       return true;
     }
 
@@ -1575,300 +1127,257 @@ export class CartPage {
           '[role="alert"]:visible',
           '[class*="error" i]:visible',
           '[class*="validation" i]:visible',
-        ].join(',')
+        ].join(","),
       )
       .first();
 
-    return validation
-      .isVisible()
-      .catch(() => false);
+    return validation.isVisible().catch(() => false);
   }
 
   // CART-016
- 
   async removeFirstCartItem(): Promise<boolean> {
-  /*
-   * First try removing from the detected cart-item container.
-   */
-  const item =
-    await this.getFirstCartItemContainer();
+    const removeSelectors = [
+      'button[aria-label*="remove" i]:visible',
+      'button[title*="remove" i]:visible',
+      'button[data-testid*="remove" i]:visible',
+      'button[data-analytics-name*="remove" i]:visible',
+      'button[class*="remove" i]:visible',
 
-  if (item) {
-    const remove =
-      item
-        .locator(
-          [
-            'button[aria-label*="remove" i]:visible',
-            'button[title*="remove" i]:visible',
-            'button[data-testid*="remove" i]:visible',
-            'button:has-text("Remove"):visible',
-            'a:has-text("Remove"):visible',
-            '[class*="remove" i] button:visible',
-            '[class*="remove" i] a:visible',
-          ].join(',')
-        )
-        .first();
+      'a[aria-label*="remove" i]:visible',
+      'a[title*="remove" i]:visible',
+      'a[data-testid*="remove" i]:visible',
+      'a[data-analytics-name*="remove" i]:visible',
+      'a[class*="remove" i]:visible',
 
-    if (
-      await remove
-        .isVisible()
-        .catch(() => false)
-    ) {
-      console.log(
-        'Removing cart item from detected item container'
-      );
+      '[role="button"][aria-label*="remove" i]:visible',
+      '[role="button"][title*="remove" i]:visible',
+      '[role="button"][data-testid*="remove" i]:visible',
+      '[role="button"][data-analytics-name*="remove" i]:visible',
+      '[role="button"][class*="remove" i]:visible',
 
-      const clicked =
-        await remove
+      'input[type="button"][value*="remove" i]:visible',
+      'input[type="submit"][value*="remove" i]:visible',
+
+      'button:has-text("Remove"):visible',
+      'a:has-text("Remove"):visible',
+      '[role="button"]:has-text("Remove"):visible',
+
+      '[class*="remove" i] button:visible',
+      '[class*="remove" i] a:visible',
+      '[class*="remove" i] [role="button"]:visible',
+    ];
+
+    /*
+     * First try inside a detected cart item.
+     */
+    const item = await this.getFirstCartItemContainer();
+
+    if (item) {
+      const remove = item.locator(removeSelectors.join(",")).first();
+
+      if (await remove.isVisible().catch(() => false)) {
+        console.log("Removing cart item from detected item container");
+
+        const clicked = await remove
           .click({
             timeout: 5000,
           })
           .then(() => true)
           .catch(() => false);
 
-      if (!clicked) {
-        await remove.click({
-          timeout: 3000,
-          force: true,
-        });
+        if (!clicked) {
+          await remove.click({
+            timeout: 3000,
+            force: true,
+          });
+        }
+
+        await this.page.waitForTimeout(800);
+
+        return true;
       }
-
-      await this.page.waitForTimeout(
-        250
-      );
-
-      return true;
     }
-  }
 
-  /*
-   * Frontgate fallback:
-   * look for any visible Remove action directly
-   * on the cart page.
-   */
-  const globalRemove =
-    this.page
-      .locator(
-        [
-          'main button[aria-label*="remove" i]:visible',
-          'main button[title*="remove" i]:visible',
-          'main button[data-testid*="remove" i]:visible',
-          'main button:has-text("Remove"):visible',
-          'main a:has-text("Remove"):visible',
-          'button:has-text("Remove"):visible',
-          'a:has-text("Remove"):visible',
-        ].join(',')
-      )
-      .first();
+    /*
+     * Shared CBI fallback:
+     * search the whole cart page.
+     */
+    const globalRemove = this.page.locator(removeSelectors.join(",")).first();
 
-  if (
-    await globalRemove
-      .isVisible()
-      .catch(() => false)
-  ) {
-    console.log(
-      'Removing cart item using global Frontgate fallback'
-    );
+    if (await globalRemove.isVisible().catch(() => false)) {
+      console.log("Removing cart item using global cart fallback");
 
-    const clicked =
-      await globalRemove
+      const clicked = await globalRemove
         .click({
           timeout: 5000,
         })
         .then(() => true)
         .catch(() => false);
 
-    if (!clicked) {
-      await globalRemove.click({
-        timeout: 3000,
-        force: true,
-      });
+      if (!clicked) {
+        await globalRemove.click({
+          timeout: 3000,
+          force: true,
+        });
+      }
+
+      await this.page.waitForTimeout(800);
+
+      return true;
     }
 
-    await this.page.waitForTimeout(
-      800
-    );
+    /*
+     * Final text fallback:
+     * sometimes "Remove" is rendered inside a wrapper,
+     * while the clickable parent is the actual control.
+     */
+    const removeText = this.page.getByText(/^remove$/i).first();
 
-    return true;
-  }
+    if (await removeText.isVisible().catch(() => false)) {
+      const clickableParent = removeText.locator(
+        'xpath=ancestor-or-self::*[self::button or self::a or @role="button"][1]',
+      );
 
-  console.log(
-    'No visible cart Remove control was found'
-  );
+      if (await clickableParent.isVisible().catch(() => false)) {
+        console.log("Removing cart item using Remove text parent fallback");
 
-  return false;
-}
+        await clickableParent.click({
+          timeout: 5000,
+          force: true,
+        });
 
-  // CART-017 / CART-018
-  async isCartEmpty(): Promise<boolean> {
-  /*
-   * Strongest signal: explicit empty-cart message.
-   */
-  if (
-    await this.emptyMessage
-      .isVisible()
-      .catch(() => false)
-  ) {
-    return true;
-  }
+        await this.page.waitForTimeout(800);
 
-  /*
-   * Use the real cart count before relying on
-   * visible line-item container detection.
-   *
-   * Frontgate can expose the cart quantity in
-   * the header even when our generic cart-row
-   * selectors do not match its current markup.
-   */
-  const roleCount =
-    await this.extractCountFromLocator(
-      this.cartCountControl
-    );
+        return true;
+      }
+    }
 
-  if (
-    roleCount !== null
-  ) {
-    return roleCount === 0;
-  }
+    console.log("No visible cart Remove control was found");
 
-  const genericCount =
-    await this.extractCountFromLocator(
-      this.genericCountControl
-    );
-
-  if (
-    genericCount !== null
-  ) {
-    return genericCount === 0;
-  }
-
-  /*
-   * If Checkout is visible and enabled,
-   * the cart cannot be empty.
-   */
-  const checkout =
-    await this.getCheckoutControl();
-
-  if (
-    checkout &&
-    await checkout
-      .isVisible()
-      .catch(() => false)
-  ) {
     return false;
   }
 
-  /*
-   * Final fallback only.
-   */
-  const items =
-    await this.getVisibleCartItemCount();
+  // CART-017 / CART-018
+  async isCartEmpty(): Promise<boolean> {
+    /*
+     * Strongest signal: explicit empty-cart message.
+     */
+    if (await this.emptyMessage.isVisible().catch(() => false)) {
+      return true;
+    }
 
-  return items === 0;
-}
+    /*
+     * Use the real cart count before relying on
+     * visible line-item container detection.
+     *
+     * Frontgate can expose the cart quantity in
+     * the header even when our generic cart-row
+     * selectors do not match its current markup.
+     */
+    const roleCount = await this.extractCountFromLocator(this.cartCountControl);
+
+    if (roleCount !== null) {
+      return roleCount === 0;
+    }
+
+    const genericCount = await this.extractCountFromLocator(
+      this.genericCountControl,
+    );
+
+    if (genericCount !== null) {
+      return genericCount === 0;
+    }
+
+    /*
+     * If Checkout is visible and enabled,
+     * the cart cannot be empty.
+     */
+    const checkout = await this.getCheckoutControl();
+
+    if (checkout && (await checkout.isVisible().catch(() => false))) {
+      return false;
+    }
+
+    /*
+     * Final fallback only.
+     */
+    const items = await this.getVisibleCartItemCount();
+
+    return items === 0;
+  }
 
   async removeAllCartItems(): Promise<void> {
-    for (
-      let attempt = 0;
-      attempt < 50;
-      attempt++
-    ) {
-      if (
-        await this.isCartEmpty()
-      ) {
+    for (let attempt = 0; attempt < 50; attempt++) {
+      if (await this.isCartEmpty()) {
         return;
       }
 
-      const removed =
-        await this.removeFirstCartItem();
+      const removed = await this.removeFirstCartItem();
 
       if (!removed) {
         console.log(
-          `Cart cleanup could not remove item on attempt ${attempt + 1}`
+          `Cart cleanup could not remove item on attempt ${attempt + 1}`,
         );
 
         break;
       }
 
-      await this.page.waitForTimeout(
-        200
-      );
+      await this.page.waitForTimeout(200);
     }
 
-    const empty =
-      await this.isCartEmpty();
+    const empty = await this.isCartEmpty();
 
     expect(
       empty,
-      'Cart should become empty after removing all items'
+      "Cart should become empty after removing all items",
     ).toBeTruthy();
   }
 
   async verifyEmptyCartState(): Promise<void> {
-    const empty =
-      await this.isCartEmpty();
+    const empty = await this.isCartEmpty();
 
-    expect(
-      empty,
-      'Cart should show an empty state'
-    ).toBeTruthy();
+    expect(empty, "Cart should show an empty state").toBeTruthy();
 
     const bodyText = (
       await this.page
-        .locator('body')
+        .locator("body")
         .innerText()
-        .catch(() => '')
+        .catch(() => "")
     )
-      .replace(/\s+/g, ' ')
+      .replace(/\s+/g, " ")
       .trim();
 
     expect(
       bodyText,
-      'Empty cart page should still render meaningful content'
-    ).not.toBe('');
+      "Empty cart page should still render meaningful content",
+    ).not.toBe("");
   }
 
   // CART-019 / CART-020
   async getVisibleCartItemCount(): Promise<number> {
-    const items =
-      await this.getCartItemContainers();
+    const items = await this.getCartItemContainers();
 
     return items.length;
   }
 
   async getCartItemIdentifiers(): Promise<string[]> {
-    const items =
-      await this.getCartItemContainers();
+    const items = await this.getCartItemContainers();
 
     const identifiers: string[] = [];
 
     for (const item of items) {
-      const link = item
-        .locator('a[href]')
-        .first();
+      const link = item.locator("a[href]").first();
 
-      const href =
-        await link
-          .getAttribute('href')
-          .catch(() => null);
+      const href = await link.getAttribute("href").catch(() => null);
 
       if (href) {
-        identifiers.push(
-          new URL(
-            href,
-            this.page.url()
-          ).toString()
-        );
+        identifiers.push(new URL(href, this.page.url()).toString());
 
         continue;
       }
 
-      const text = (
-        await item
-          .innerText()
-          .catch(() => '')
-      )
-        .replace(/\s+/g, ' ')
+      const text = (await item.innerText().catch(() => ""))
+        .replace(/\s+/g, " ")
         .trim();
 
       if (text) {
@@ -1880,20 +1389,18 @@ export class CartPage {
   }
 
   async verifyMultipleItemsRemainDistinct(): Promise<void> {
-    const identifiers =
-      await this.getCartItemIdentifiers();
+    const identifiers = await this.getCartItemIdentifiers();
 
     expect(
       identifiers.length,
-      'Cart should contain multiple visible items'
+      "Cart should contain multiple visible items",
     ).toBeGreaterThan(1);
 
-    const unique =
-      new Set(identifiers);
+    const unique = new Set(identifiers);
 
     expect(
       unique.size,
-      'Different cart items should remain distinct'
+      "Different cart items should remain distinct",
     ).toBeGreaterThan(1);
   }
 
@@ -1904,14 +1411,11 @@ export class CartPage {
     quantity: number | null;
   }> {
     return {
-      itemCount:
-        await this.getCartItemCount(),
+      itemCount: await this.getCartItemCount(),
 
-      visibleRows:
-        await this.getVisibleCartItemCount(),
+      visibleRows: await this.getVisibleCartItemCount(),
 
-      quantity:
-        await this.getCartQuantity(),
+      quantity: await this.getCartQuantity(),
     };
   }
 
@@ -1923,21 +1427,13 @@ export class CartPage {
           '[class*="subtotal" i]:visible',
           '[data-testid*="subtotal" i]:visible',
           '[aria-label*="subtotal" i]:visible',
-        ].join(',')
+        ].join(","),
       )
       .first();
 
-    if (
-      await subtotal
-        .isVisible()
-        .catch(() => false)
-    ) {
-      const text = (
-        await subtotal
-          .innerText()
-          .catch(() => '')
-      )
-        .replace(/\s+/g, ' ')
+    if (await subtotal.isVisible().catch(() => false)) {
+      const text = (await subtotal.innerText().catch(() => ""))
+        .replace(/\s+/g, " ")
         .trim();
 
       if (text) {
@@ -1945,26 +1441,13 @@ export class CartPage {
       }
     }
 
-    const textCandidate = this.page
-      .getByText(
-        /subtotal/i
-      )
-      .first();
+    const textCandidate = this.page.getByText(/subtotal/i).first();
 
-    if (
-      await textCandidate
-        .isVisible()
-        .catch(() => false)
-    ) {
-      const parent =
-        textCandidate.locator('..');
+    if (await textCandidate.isVisible().catch(() => false)) {
+      const parent = textCandidate.locator("..");
 
-      const text = (
-        await parent
-          .innerText()
-          .catch(() => '')
-      )
-        .replace(/\s+/g, ' ')
+      const text = (await parent.innerText().catch(() => ""))
+        .replace(/\s+/g, " ")
         .trim();
 
       if (text) {
@@ -1976,30 +1459,21 @@ export class CartPage {
   }
 
   async getCartSubtotalValue(): Promise<number | null> {
-    const text =
-      await this.getCartSubtotalText();
+    const text = await this.getCartSubtotalText();
 
     if (!text) {
       return null;
     }
 
-    return this.extractMoneyValue(
-      text
-    );
+    return this.extractMoneyValue(text);
   }
 
   async verifyCartSubtotalDisplayed(): Promise<void> {
-    const subtotal =
-      await this.getCartSubtotalValue();
+    const subtotal = await this.getCartSubtotalValue();
 
-    expect(
-      subtotal,
-      'Cart subtotal should be displayed'
-    ).not.toBeNull();
+    expect(subtotal, "Cart subtotal should be displayed").not.toBeNull();
 
-    expect(
-      subtotal!
-    ).toBeGreaterThan(0);
+    expect(subtotal!).toBeGreaterThan(0);
   }
 
   // CART-023
@@ -2008,11 +1482,9 @@ export class CartPage {
     before: number | null;
     after: number | null;
   }> {
-    const before =
-      await this.getCartSubtotalValue();
+    const before = await this.getCartSubtotalValue();
 
-    const changed =
-      await this.increaseCartQuantity();
+    const changed = await this.increaseCartQuantity();
 
     if (!changed) {
       return {
@@ -2022,12 +1494,9 @@ export class CartPage {
       };
     }
 
-    await this.page.waitForTimeout(
-      800
-    );
+    await this.page.waitForTimeout(800);
 
-    const after =
-      await this.getCartSubtotalValue();
+    const after = await this.getCartSubtotalValue();
 
     return {
       supported: true,
@@ -2042,19 +1511,13 @@ export class CartPage {
     before: number | null;
     after: number | null;
   }> {
-    let quantity =
-      await this.getCartQuantity();
+    let quantity = await this.getCartQuantity();
 
-    if (
-      quantity !== null &&
-      quantity <= 1
-    ) {
-      const increased =
-        await this.increaseCartQuantity();
+    if (quantity !== null && quantity <= 1) {
+      const increased = await this.increaseCartQuantity();
 
       if (!increased) {
-        const subtotal =
-          await this.getCartSubtotalValue();
+        const subtotal = await this.getCartSubtotalValue();
 
         return {
           supported: false,
@@ -2063,19 +1526,14 @@ export class CartPage {
         };
       }
 
-      await this.page.waitForTimeout(
-        500
-      );
+      await this.page.waitForTimeout(500);
 
-      quantity =
-        await this.getCartQuantity();
+      quantity = await this.getCartQuantity();
     }
 
-    const before =
-      await this.getCartSubtotalValue();
+    const before = await this.getCartSubtotalValue();
 
-    const changed =
-      await this.decreaseCartQuantity();
+    const changed = await this.decreaseCartQuantity();
 
     if (!changed) {
       return {
@@ -2085,12 +1543,9 @@ export class CartPage {
       };
     }
 
-    await this.page.waitForTimeout(
-      800
-    );
+    await this.page.waitForTimeout(800);
 
-    const after =
-      await this.getCartSubtotalValue();
+    const after = await this.getCartSubtotalValue();
 
     return {
       supported: true,
@@ -2107,14 +1562,11 @@ export class CartPage {
     beforeItems: number;
     afterItems: number;
   }> {
-    const before =
-      await this.getCartSubtotalValue();
+    const before = await this.getCartSubtotalValue();
 
-    const beforeItems =
-      await this.getVisibleCartItemCount();
+    const beforeItems = await this.getVisibleCartItemCount();
 
-    const removed =
-      await this.removeFirstCartItem();
+    const removed = await this.removeFirstCartItem();
 
     if (!removed) {
       return {
@@ -2126,15 +1578,11 @@ export class CartPage {
       };
     }
 
-    await this.page.waitForTimeout(
-      800
-    );
+    await this.page.waitForTimeout(800);
 
-    const afterItems =
-      await this.getVisibleCartItemCount();
+    const afterItems = await this.getVisibleCartItemCount();
 
-    const after =
-      await this.getCartSubtotalValue();
+    const after = await this.getCartSubtotalValue();
 
     return {
       supported: true,
@@ -2145,556 +1593,421 @@ export class CartPage {
     };
   }
 
-// CART-026
-async getFirstCartItemPriceValue(): Promise<number | null> {
-  const text =
-    await this.getFirstCartItemPrice();
+  // CART-026
+  async getFirstCartItemPriceValue(): Promise<number | null> {
+    const text = await this.getFirstCartItemPrice();
 
-  if (!text) {
-    return null;
+    if (!text) {
+      return null;
+    }
+
+    return this.extractMoneyValue(text);
   }
 
-  return this.extractMoneyValue(text);
-}
+  async hasPromotionalPriceInCart(): Promise<boolean> {
+    const item = await this.getFirstCartItemContainer();
 
-async hasPromotionalPriceInCart(): Promise<boolean> {
-  const item =
-    await this.getFirstCartItemContainer();
+    if (!item) {
+      return false;
+    }
 
-  if (!item) {
-    return false;
+    const promotional = item
+      .locator(
+        [
+          '[class*="sale-price" i]:visible',
+          '[class*="promo-price" i]:visible',
+          '[class*="promotional-price" i]:visible',
+          '[class*="original-price" i]:visible',
+          '[class*="was-price" i]:visible',
+          '[data-testid*="sale-price" i]:visible',
+        ].join(","),
+      )
+      .first();
+
+    return promotional.isVisible().catch(() => false);
   }
 
-  const promotional = item
-    .locator(
-      [
-        '[class*="sale-price" i]:visible',
-        '[class*="promo-price" i]:visible',
-        '[class*="promotional-price" i]:visible',
-        '[class*="original-price" i]:visible',
-        '[class*="was-price" i]:visible',
-        '[data-testid*="sale-price" i]:visible',
-      ].join(',')
-    )
-    .first();
-
-  return promotional
-    .isVisible()
-    .catch(() => false);
-}
-
-// CART-027
-async getPromoCodeInput(): Promise<Locator | null> {
-  const input = this.page
-    .locator(
-      [
-        'input[name*="promo" i]:visible',
-        'input[id*="promo" i]:visible',
-        'input[placeholder*="promo" i]:visible',
-        'input[aria-label*="promo" i]:visible',
-
-        'input[name*="coupon" i]:visible',
-        'input[id*="coupon" i]:visible',
-        'input[placeholder*="coupon" i]:visible',
-        'input[aria-label*="coupon" i]:visible',
-
-        'input[name*="offer" i]:visible',
-        'input[id*="offer" i]:visible',
-      ].join(',')
-    )
-    .first();
-
-  if (
-    await input
-      .isVisible()
-      .catch(() => false)
-  ) {
-    return input;
-  }
-
-  const promoTrigger = this.page
-    .locator(
-      [
-        'button:has-text("Promo Code"):visible',
-        'button:has-text("Coupon"):visible',
-        'button:has-text("Promotion"):visible',
-        'button:has-text("Offer Code"):visible',
-        '[aria-label*="promo" i]:visible',
-      ].join(',')
-    )
-    .first();
-
-  if (
-    await promoTrigger
-      .isVisible()
-      .catch(() => false)
-  ) {
-    await promoTrigger.click();
-
-    await this.page.waitForTimeout(
-      300
-    );
-
-    const revealed = this.page
+  // CART-027
+  async getPromoCodeInput(): Promise<Locator | null> {
+    const input = this.page
       .locator(
         [
           'input[name*="promo" i]:visible',
           'input[id*="promo" i]:visible',
           'input[placeholder*="promo" i]:visible',
+          'input[aria-label*="promo" i]:visible',
+
           'input[name*="coupon" i]:visible',
           'input[id*="coupon" i]:visible',
           'input[placeholder*="coupon" i]:visible',
-        ].join(',')
+          'input[aria-label*="coupon" i]:visible',
+
+          'input[name*="offer" i]:visible',
+          'input[id*="offer" i]:visible',
+        ].join(","),
       )
       .first();
 
-    if (
-      await revealed
-        .isVisible()
-        .catch(() => false)
-    ) {
-      return revealed;
+    if (await input.isVisible().catch(() => false)) {
+      return input;
     }
+
+    const promoTrigger = this.page
+      .locator(
+        [
+          'button:has-text("Promo Code"):visible',
+          'button:has-text("Coupon"):visible',
+          'button:has-text("Promotion"):visible',
+          'button:has-text("Offer Code"):visible',
+          '[aria-label*="promo" i]:visible',
+        ].join(","),
+      )
+      .first();
+
+    if (await promoTrigger.isVisible().catch(() => false)) {
+      await promoTrigger.click();
+
+      await this.page.waitForTimeout(300);
+
+      const revealed = this.page
+        .locator(
+          [
+            'input[name*="promo" i]:visible',
+            'input[id*="promo" i]:visible',
+            'input[placeholder*="promo" i]:visible',
+            'input[name*="coupon" i]:visible',
+            'input[id*="coupon" i]:visible',
+            'input[placeholder*="coupon" i]:visible',
+          ].join(","),
+        )
+        .first();
+
+      if (await revealed.isVisible().catch(() => false)) {
+        return revealed;
+      }
+    }
+
+    return null;
   }
 
-  return null;
-}
+  // CART-028
+  async applyInvalidPromoCode(): Promise<{
+    supported: boolean;
+    handled: boolean;
+  }> {
+    const input = await this.getPromoCodeInput();
 
-// CART-028
-async applyInvalidPromoCode(): Promise<{
-  supported: boolean;
-  handled: boolean;
-}> {
-  const input =
-    await this.getPromoCodeInput();
+    if (!input) {
+      return {
+        supported: false,
+        handled: false,
+      };
+    }
 
-  if (!input) {
+    const beforeSubtotal = await this.getCartSubtotalValue();
+
+    const invalidCode = `INVALID-AUTOMATION-${Date.now()}`;
+
+    await input.fill(invalidCode);
+
+    const apply = this.page
+      .locator(
+        [
+          'button:has-text("Apply"):visible',
+          'button:has-text("Submit"):visible',
+          'button:has-text("Add"):visible',
+          '[data-testid*="promo" i] button:visible',
+          '[data-testid*="coupon" i] button:visible',
+        ].join(","),
+      )
+      .first();
+
+    if (await apply.isVisible().catch(() => false)) {
+      await apply.click();
+    } else {
+      await input.press("Enter");
+    }
+
+    await this.page.waitForTimeout(700);
+
+    const validation = this.page
+      .locator(
+        [
+          '[role="alert"]:visible',
+          '[class*="error" i]:visible',
+          '[class*="validation" i]:visible',
+          '[class*="invalid" i]:visible',
+        ].join(","),
+      )
+      .filter({
+        hasText:
+          /invalid|not valid|not recognized|not found|expired|cannot be applied|unable to apply/i,
+      })
+      .first();
+
+    if (await validation.isVisible().catch(() => false)) {
+      return {
+        supported: true,
+        handled: true,
+      };
+    }
+
+    const afterSubtotal = await this.getCartSubtotalValue();
+
+    if (
+      beforeSubtotal !== null &&
+      afterSubtotal !== null &&
+      beforeSubtotal === afterSubtotal
+    ) {
+      return {
+        supported: true,
+        handled: true,
+      };
+    }
+
     return {
-      supported: false,
+      supported: true,
       handled: false,
     };
   }
 
-  const beforeSubtotal =
-    await this.getCartSubtotalValue();
+  // CART-029
+  async refreshAndVerifyCartPersistence(): Promise<boolean> {
+    const before = await this.getCartItemIdentifiers();
 
-  const invalidCode =
-    `INVALID-AUTOMATION-${Date.now()}`;
+    if (before.length === 0) {
+      return false;
+    }
 
-  await input.fill(invalidCode);
+    await this.page.reload({
+      waitUntil: "domcontentloaded",
+    });
 
-  const apply = this.page
-    .locator(
-      [
-        'button:has-text("Apply"):visible',
-        'button:has-text("Submit"):visible',
-        'button:has-text("Add"):visible',
-        '[data-testid*="promo" i] button:visible',
-        '[data-testid*="coupon" i] button:visible',
-      ].join(',')
-    )
-    .first();
+    await this.verifyCartLoaded();
 
-  if (
-    await apply
-      .isVisible()
-      .catch(() => false)
-  ) {
-    await apply.click();
-  } else {
-    await input.press('Enter');
+    const after = await this.getCartItemIdentifiers();
+
+    if (after.length === 0) {
+      return false;
+    }
+
+    return before.every((identifier) => after.includes(identifier));
   }
 
-  await this.page.waitForTimeout(
-    700
-  );
+  // CART-030
+  async leaveAndReturnToCart(siteUrl: string): Promise<boolean> {
+    const before = await this.getCartItemIdentifiers();
 
-  const validation = this.page
-    .locator(
-      [
-        '[role="alert"]:visible',
-        '[class*="error" i]:visible',
-        '[class*="validation" i]:visible',
-        '[class*="invalid" i]:visible',
-      ].join(',')
-    )
-    .filter({
-      hasText:
-        /invalid|not valid|not recognized|not found|expired|cannot be applied|unable to apply/i,
-    })
-    .first();
+    if (before.length === 0) {
+      return false;
+    }
 
-  if (
-    await validation
-      .isVisible()
-      .catch(() => false)
-  ) {
-    return {
-      supported: true,
-      handled: true,
-    };
-  }
-
-  const afterSubtotal =
-    await this.getCartSubtotalValue();
-
-  if (
-    beforeSubtotal !== null &&
-    afterSubtotal !== null &&
-    beforeSubtotal === afterSubtotal
-  ) {
-    return {
-      supported: true,
-      handled: true,
-    };
-  }
-
-  return {
-    supported: true,
-    handled: false,
-  };
-}
-
-// CART-029
-async refreshAndVerifyCartPersistence(): Promise<boolean> {
-  const before =
-    await this.getCartItemIdentifiers();
-
-  if (
-    before.length === 0
-  ) {
-    return false;
-  }
-
-  await this.page.reload({
-    waitUntil: 'domcontentloaded',
-  });
-
-  await this.verifyCartLoaded();
-
-  const after =
-    await this.getCartItemIdentifiers();
-
-  if (
-    after.length === 0
-  ) {
-    return false;
-  }
-
-  return before.every(
-    (identifier) =>
-      after.includes(identifier)
-  );
-}
-
-// CART-030
-async leaveAndReturnToCart(
-  siteUrl: string
-): Promise<boolean> {
-  const before =
-    await this.getCartItemIdentifiers();
-
-  if (
-    before.length === 0
-  ) {
-    return false;
-  }
-
-  await this.page.goto(
-    siteUrl,
-    {
-      waitUntil: 'domcontentloaded',
+    await this.page.goto(siteUrl, {
+      waitUntil: "domcontentloaded",
       timeout: 60000,
+    });
+
+    await this.openCart();
+
+    await this.verifyCartLoaded();
+
+    const after = await this.getCartItemIdentifiers();
+
+    if (after.length === 0) {
+      return false;
     }
-  );
 
-  await this.openCart();
-
-  await this.verifyCartLoaded();
-
-  const after =
-    await this.getCartItemIdentifiers();
-
-  if (
-    after.length === 0
-  ) {
-    return false;
+    return before.every((identifier) => after.includes(identifier));
   }
 
-  return before.every(
-    (identifier) =>
-      after.includes(identifier)
-  );
-}
+  // CART-031
+  async proceedToCheckoutAndVerifyNavigation(): Promise<void> {
+    const beforeUrl = this.page.url();
 
-// CART-031
-async proceedToCheckoutAndVerifyNavigation(): Promise<void> {
-  const beforeUrl =
-    this.page.url();
+    await this.proceedToCheckout();
 
-  await this.proceedToCheckout();
+    const afterUrl = this.page.url();
 
-  const afterUrl =
-    this.page.url();
-
-  expect(
-    afterUrl,
-    'Checkout navigation should leave Cart'
-  ).not.toBe(beforeUrl);
-
-  await expect(
-    this.page.locator('body')
-  ).toBeVisible();
-}
-
-// CART-032
-async triggerCheckoutSafelyTwice(): Promise<boolean> {
-  const firstControl =
-    await this.getCheckoutControl();
-
-  if (!firstControl) {
-    return false;
-  }
-
-  await firstControl.click();
-
-  await this.page.waitForLoadState(
-    'domcontentloaded'
-  );
-
-  await expect(
-    this.page.locator('body')
-  ).toBeVisible();
-
-  /*
-   * We do not submit an order.
-   *
-   * Once checkout navigation occurs, a second Cart
-   * checkout control may legitimately no longer exist.
-   * The assertion here is that repeated interaction
-   * does not leave the browser in a broken/error state.
-   */
-  const bodyText = (
-    await this.page
-      .locator('body')
-      .innerText()
-      .catch(() => '')
-  )
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  expect(
-    bodyText
-  ).not.toBe('');
-
-  expect(
-    bodyText
-  ).not.toMatch(
-    /internal server error|application error|stack trace|uncaught exception/i
-  );
-
-  return true;
-}
-
-// CART-033
-async hasHorizontalOverflow(): Promise<boolean> {
-  return this.page.evaluate(
-    () => {
-      const root =
-        document.documentElement;
-
-      return (
-        root.scrollWidth >
-        root.clientWidth + 2
-      );
-    }
-  );
-}
-
-// CART-034
-async verifyFirstCartItemControlsDoNotOverlap(): Promise<void> {
-  const item =
-    await this.getFirstCartItemContainer();
-
-  if (!item) {
-    throw new Error(
-      'No cart item available for mobile layout validation'
+    expect(afterUrl, "Checkout navigation should leave Cart").not.toBe(
+      beforeUrl,
     );
+
+    await expect(this.page.locator("body")).toBeVisible();
   }
 
-  const controls = [
-    item
-      .locator(
-        [
-          'input[name*="quantity" i]:visible',
-          'select[name*="quantity" i]:visible',
-          '[aria-label*="quantity" i]:visible',
-        ].join(',')
-      )
-      .first(),
+  // CART-032
+  async triggerCheckoutSafelyTwice(): Promise<boolean> {
+    const firstControl = await this.getCheckoutControl();
 
-    item
-      .locator(
-        [
-          'button[aria-label*="remove" i]:visible',
-          'button:has-text("Remove"):visible',
-          'a:has-text("Remove"):visible',
-        ].join(',')
-      )
-      .first(),
-
-    item
-      .locator(
-        [
-          '[class*="price" i]:visible',
-          '[data-testid*="price" i]:visible',
-        ].join(',')
-      )
-      .first(),
-  ];
-
-  const boxes: {
-    name: string;
-    box: {
-      x: number;
-      y: number;
-      width: number;
-      height: number;
-    };
-  }[] = [];
-
-  const names = [
-    'quantity',
-    'remove',
-    'price',
-  ];
-
-  for (
-    let i = 0;
-    i < controls.length;
-    i++
-  ) {
-    if (
-      !(await controls[i]
-        .isVisible()
-        .catch(() => false))
-    ) {
-      continue;
+    if (!firstControl) {
+      return false;
     }
 
-    const box =
-      await controls[i].boundingBox();
+    await firstControl.click();
 
-    if (box) {
-      boxes.push({
-        name: names[i],
-        box,
-      });
+    await this.page.waitForLoadState("domcontentloaded");
+
+    await expect(this.page.locator("body")).toBeVisible();
+
+    /*
+     * We do not submit an order.
+     *
+     * Once checkout navigation occurs, a second Cart
+     * checkout control may legitimately no longer exist.
+     * The assertion here is that repeated interaction
+     * does not leave the browser in a broken/error state.
+     */
+    const bodyText = (
+      await this.page
+        .locator("body")
+        .innerText()
+        .catch(() => "")
+    )
+      .replace(/\s+/g, " ")
+      .trim();
+
+    expect(bodyText).not.toBe("");
+
+    expect(bodyText).not.toMatch(
+      /internal server error|application error|stack trace|uncaught exception/i,
+    );
+
+    return true;
+  }
+
+  // CART-033
+  async hasHorizontalOverflow(): Promise<boolean> {
+    return this.page.evaluate(() => {
+      const root = document.documentElement;
+
+      return root.scrollWidth > root.clientWidth + 2;
+    });
+  }
+
+  // CART-034
+  async verifyFirstCartItemControlsDoNotOverlap(): Promise<void> {
+    const item = await this.getFirstCartItemContainer();
+
+    if (!item) {
+      throw new Error("No cart item available for mobile layout validation");
+    }
+
+    const controls = [
+      item
+        .locator(
+          [
+            'input[name*="quantity" i]:visible',
+            'select[name*="quantity" i]:visible',
+            '[aria-label*="quantity" i]:visible',
+          ].join(","),
+        )
+        .first(),
+
+      item
+        .locator(
+          [
+            'button[aria-label*="remove" i]:visible',
+            'button:has-text("Remove"):visible',
+            'a:has-text("Remove"):visible',
+          ].join(","),
+        )
+        .first(),
+
+      item
+        .locator(
+          [
+            '[class*="price" i]:visible',
+            '[data-testid*="price" i]:visible',
+          ].join(","),
+        )
+        .first(),
+    ];
+
+    const boxes: {
+      name: string;
+      box: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      };
+    }[] = [];
+
+    const names = ["quantity", "remove", "price"];
+
+    for (let i = 0; i < controls.length; i++) {
+      if (!(await controls[i].isVisible().catch(() => false))) {
+        continue;
+      }
+
+      const box = await controls[i].boundingBox();
+
+      if (box) {
+        boxes.push({
+          name: names[i],
+          box,
+        });
+      }
+    }
+
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i].box;
+
+        const b = boxes[j].box;
+
+        const horizontalOverlap =
+          Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+
+        const verticalOverlap =
+          Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+
+        const overlapping = horizontalOverlap > 5 && verticalOverlap > 5;
+
+        expect(
+          overlapping,
+          `${boxes[i].name} and ${boxes[j].name} controls should not overlap`,
+        ).toBeFalsy();
+      }
     }
   }
 
-  for (
-    let i = 0;
-    i < boxes.length;
-    i++
-  ) {
-    for (
-      let j = i + 1;
-      j < boxes.length;
-      j++
-    ) {
-      const a =
-        boxes[i].box;
-
-      const b =
-        boxes[j].box;
-
-      const horizontalOverlap =
-        Math.min(
-          a.x + a.width,
-          b.x + b.width
-        ) -
-        Math.max(
-          a.x,
-          b.x
-        );
-
-      const verticalOverlap =
-        Math.min(
-          a.y + a.height,
-          b.y + b.height
-        ) -
-        Math.max(
-          a.y,
-          b.y
-        );
-
-      const overlapping =
-        horizontalOverlap > 5 &&
-        verticalOverlap > 5;
-
-      expect(
-        overlapping,
-        `${boxes[i].name} and ${boxes[j].name} controls should not overlap`
-      ).toBeFalsy();
-    }
+  // CART-035
+  async getCurrentViewport(): Promise<{
+    width: number;
+    height: number;
+  }> {
+    return this.page.evaluate(() => ({
+      width: window.innerWidth,
+      height: window.innerHeight,
+    }));
   }
-}
-
-// CART-035
-async getCurrentViewport(): Promise<{
-  width: number;
-  height: number;
-}> {
-  return this.page.evaluate(
-    () => ({
-      width:
-        window.innerWidth,
-      height:
-        window.innerHeight,
-    })
-  );
-}
-
 
   private async getCartItemContainers(): Promise<Locator[]> {
-    const candidates =
-      this.page.locator(
-        [
-          'main [class*="cart-item" i]:visible',
-          'main [class*="cartItem" i]:visible',
-          'main [data-testid*="cart-item" i]:visible',
-          'main [class*="line-item" i]:visible',
-          'main [class*="order-item" i]:visible',
-          'main article:visible',
-        ].join(',')
-      );
-
-    const count = Math.min(
-      await candidates.count(),
-      50
+    const candidates = this.page.locator(
+      [
+        'main [class*="cart-item" i]:visible',
+        'main [class*="cartItem" i]:visible',
+        'main [data-testid*="cart-item" i]:visible',
+        'main [class*="line-item" i]:visible',
+        'main [class*="order-item" i]:visible',
+        "main article:visible",
+      ].join(","),
     );
+
+    const count = Math.min(await candidates.count(), 50);
 
     const items: Locator[] = [];
 
     for (let i = 0; i < count; i++) {
-      const candidate =
-        candidates.nth(i);
+      const candidate = candidates.nth(i);
 
-      if (
-        !(await candidate
-          .isVisible()
-          .catch(() => false))
-      ) {
+      if (!(await candidate.isVisible().catch(() => false))) {
         continue;
       }
 
-      const text = (
-        await candidate
-          .innerText()
-          .catch(() => '')
-      )
-        .replace(/\s+/g, ' ')
+      const text = (await candidate.innerText().catch(() => ""))
+        .replace(/\s+/g, " ")
         .trim();
 
       if (!text) {
@@ -2702,21 +2015,11 @@ async getCurrentViewport(): Promise<{
       }
 
       const hasProductLink =
-        (await candidate
-          .locator(
-            'a[href]:visible'
-          )
-          .count()) > 0;
+        (await candidate.locator("a[href]:visible").count()) > 0;
 
-      const hasPrice =
-        /\$\s*\d|\d+\.\d{2}/.test(
-          text
-        );
+      const hasPrice = /\$\s*\d|\d+\.\d{2}/.test(text);
 
-      if (
-        hasProductLink &&
-        hasPrice
-      ) {
+      if (hasProductLink && hasPrice) {
         items.push(candidate);
       }
     }
@@ -2725,31 +2028,19 @@ async getCurrentViewport(): Promise<{
   }
 
   private async getFirstCartItemContainer(): Promise<Locator | null> {
-    const items =
-      await this.getCartItemContainers();
+    const items = await this.getCartItemContainers();
 
-    return items.length > 0
-      ? items[0]
-      : null;
+    return items.length > 0 ? items[0] : null;
   }
 
   private async waitForAddToCartCompletion(): Promise<void> {
-    const addButton =
-      this.page
-        .getByRole(
-          'button',
-          {
-            name:
-              /add to (cart|bag)/i,
-          }
-        )
-        .first();
+    const addButton = this.page
+      .getByRole("button", {
+        name: /add to (cart|bag)/i,
+      })
+      .first();
 
-    if (
-      !(await addButton
-        .isVisible()
-        .catch(() => false))
-    ) {
+    if (!(await addButton.isVisible().catch(() => false))) {
       return;
     }
 
@@ -2761,45 +2052,30 @@ async getCurrentViewport(): Promise<{
     await this.page
       .waitForFunction(
         () => {
-          const buttons =
-            Array.from(
-              document.querySelectorAll(
-                'button[aria-label]'
-              )
-            ) as HTMLButtonElement[];
+          const buttons = Array.from(
+            document.querySelectorAll("button[aria-label]"),
+          ) as HTMLButtonElement[];
 
-          const add =
-            buttons.find(
-              (button) =>
-                /add to (cart|bag)/i.test(
-                  button.getAttribute(
-                    'aria-label'
-                  ) ?? ''
-                )
-            );
+          const add = buttons.find((button) =>
+            /add to (cart|bag)/i.test(button.getAttribute("aria-label") ?? ""),
+          );
 
           if (!add) {
             return true;
           }
 
-          const className =
-            add.className ?? '';
+          const className = add.className ?? "";
 
-          const ariaBusy =
-            add.getAttribute(
-              'aria-busy'
-            );
+          const ariaBusy = add.getAttribute("aria-busy");
 
           return (
-            !/loading|is--loading|add-to-card-loading/i.test(
-              className
-            ) &&
-            ariaBusy !== 'true'
+            !/loading|is--loading|add-to-card-loading/i.test(className) &&
+            ariaBusy !== "true"
           );
         },
         {
           timeout: 10000,
-        }
+        },
       )
       .catch(() => undefined);
 
@@ -2807,118 +2083,65 @@ async getCurrentViewport(): Promise<{
      * Give the cart API / badge a short stabilization window after
      * the visual loading state disappears.
      */
-    await this.page.waitForTimeout(
-      700
-    );
+    await this.page.waitForTimeout(700);
   }
 
   private async tryOpenCartFromConfirmation(): Promise<boolean> {
-    const containers =
-      this.page.locator(
-        [
-          '[role="dialog"]:visible',
-          '[class*="sheet" i]:visible',
-          '[class*="modal" i]:visible',
-          '[class*="drawer" i]:visible',
-        ].join(',')
-      );
+    const containers = this.page.locator(
+      [
+        '[role="dialog"]:visible',
+        '[class*="sheet" i]:visible',
+        '[class*="modal" i]:visible',
+        '[class*="drawer" i]:visible',
+      ].join(","),
+    );
 
-    const count =
-      Math.min(
-        await containers.count(),
-        20
-      );
+    const count = Math.min(await containers.count(), 20);
 
-    for (
-      let i = 0;
-      i < count;
-      i++
-    ) {
-      const container =
-        containers.nth(i);
+    for (let i = 0; i < count; i++) {
+      const container = containers.nth(i);
 
-      const text = (
-        await container
-          .innerText()
-          .catch(() => '')
-      )
-        .replace(/\s+/g, ' ')
+      const text = (await container.innerText().catch(() => ""))
+        .replace(/\s+/g, " ")
         .trim();
 
-      if (
-        !/added|cart|bag/i.test(
-          text
-        )
-      ) {
+      if (!/added|cart|bag/i.test(text)) {
         continue;
       }
 
-      const cartAction =
-        container
-          .locator(
-            [
-              'a:visible',
-              'button:visible',
-              '[role="button"]:visible',
-            ].join(',')
-          )
-          .filter({
-            hasText:
-              /view cart|view bag|shopping cart|shopping bag|go to cart|my cart|my bag/i,
-          })
-          .first();
+      const cartAction = container
+        .locator(
+          ["a:visible", "button:visible", '[role="button"]:visible'].join(","),
+        )
+        .filter({
+          hasText:
+            /view cart|view bag|shopping cart|shopping bag|go to cart|my cart|my bag/i,
+        })
+        .first();
 
-      if (
-        !(await cartAction
-          .isVisible()
-          .catch(() => false))
-      ) {
+      if (!(await cartAction.isVisible().catch(() => false))) {
         continue;
       }
 
-      const label = (
-        await cartAction
-          .innerText()
-          .catch(() => '')
-      )
-        .replace(/\s+/g, ' ')
+      const label = (await cartAction.innerText().catch(() => ""))
+        .replace(/\s+/g, " ")
         .trim();
 
-      if (
-        /add to (cart|bag)/i.test(
-          label
-        )
-      ) {
+      if (/add to (cart|bag)/i.test(label)) {
         continue;
       }
 
       console.log(
-        `Opening cart from confirmation: "${label || 'cart action'}"`
+        `Opening cart from confirmation: "${label || "cart action"}"`,
       );
 
-      const href =
-        await cartAction
-          .getAttribute('href')
-          .catch(() => null);
+      const href = await cartAction.getAttribute("href").catch(() => null);
 
-      if (
-        href &&
-        href !== '#' &&
-        !href.startsWith(
-          'javascript:'
-        )
-      ) {
-        await this.page.goto(
-          new URL(
-            href,
-            this.page.url()
-          ).toString(),
-          {
-            waitUntil:
-              'domcontentloaded',
-            timeout: 60000,
-          }
-        );
+      if (href && href !== "#" && !href.startsWith("javascript:")) {
+        await this.page.goto(new URL(href, this.page.url()).toString(), {
+          waitUntil: "domcontentloaded",
+          timeout: 60000,
+        });
 
         return true;
       }
@@ -2930,9 +2153,7 @@ async getCurrentViewport(): Promise<{
         .catch(() => undefined);
 
       await this.page
-        .waitForLoadState(
-          'domcontentloaded'
-        )
+        .waitForLoadState("domcontentloaded")
         .catch(() => undefined);
 
       return true;
@@ -2942,70 +2163,51 @@ async getCurrentViewport(): Promise<{
   }
 
   private async dismissTransientCartOverlay(): Promise<void> {
-    const mask =
-      this.page
-        .locator(
-          [
-            '.c-sheet__mask:visible',
-            '[class*="sheet__mask" i]:visible',
-            '[class*="modal"] [class*="mask" i]:visible',
-            '[class*="overlay" i]:visible',
-          ].join(',')
-        )
-        .first();
+    const mask = this.page
+      .locator(
+        [
+          ".c-sheet__mask:visible",
+          '[class*="sheet__mask" i]:visible',
+          '[class*="modal"] [class*="mask" i]:visible',
+          '[class*="overlay" i]:visible',
+        ].join(","),
+      )
+      .first();
 
-    if (
-      !(await mask
-        .isVisible()
-        .catch(() => false))
-    ) {
+    if (!(await mask.isVisible().catch(() => false))) {
       return;
     }
 
-    const container =
-      this.page
-        .locator(
-          [
-            '[role="dialog"]:visible',
-            '[class*="sheet" i]:visible',
-            '[class*="modal" i]:visible',
-          ].join(',')
-        )
-        .first();
+    const container = this.page
+      .locator(
+        [
+          '[role="dialog"]:visible',
+          '[class*="sheet" i]:visible',
+          '[class*="modal" i]:visible',
+        ].join(","),
+      )
+      .first();
 
-    const close =
-      container
-        .locator(
-          [
-            'button[aria-label*="close" i]:visible',
-            'button[title*="close" i]:visible',
-            'button:has-text("Close"):visible',
-            '[data-testid*="close" i]:visible',
-          ].join(',')
-        )
-        .first();
+    const close = container
+      .locator(
+        [
+          'button[aria-label*="close" i]:visible',
+          'button[title*="close" i]:visible',
+          'button:has-text("Close"):visible',
+          '[data-testid*="close" i]:visible',
+        ].join(","),
+      )
+      .first();
 
-    if (
-      await close
-        .isVisible()
-        .catch(() => false)
-    ) {
-      console.log(
-        'Closing transient cart confirmation overlay'
-      );
+    if (await close.isVisible().catch(() => false)) {
+      console.log("Closing transient cart confirmation overlay");
 
-      await close
-        .click()
-        .catch(() => undefined);
+      await close.click().catch(() => undefined);
     } else {
-      await this.page.keyboard
-        .press('Escape')
-        .catch(() => undefined);
+      await this.page.keyboard.press("Escape").catch(() => undefined);
     }
 
-    await expect(
-      mask
-    )
+    await expect(mask)
       .toBeHidden({
         timeout: 5000,
       })
@@ -3013,108 +2215,66 @@ async getCurrentViewport(): Promise<{
   }
 
   private async getSafeCartTrigger(): Promise<Locator | null> {
-    const candidates =
-      this.page.locator(
-        [
-          'header a[href*="ShoppingCartView" i]:visible',
-          'nav a[href*="ShoppingCartView" i]:visible',
-          'header a[href*="/cart" i]:visible',
-          'nav a[href*="/cart" i]:visible',
-          'header button[aria-label*="shopping cart" i]:visible',
-          'header button[aria-label*="shopping bag" i]:visible',
-          'header a[aria-label*="shopping cart" i]:visible',
-          'header a[aria-label*="shopping bag" i]:visible',
-          'a[href*="ShoppingCartView" i]:visible',
-          'a[href$="/cart" i]:visible',
-          'a[href*="/cart?" i]:visible',
-          '[data-testid*="cart" i][role="button"]:visible',
-          'button[aria-label*="cart" i]:visible',
-          'a[aria-label*="cart" i]:visible',
-          'button[aria-label*="bag" i]:visible',
-          'a[aria-label*="bag" i]:visible',
-        ].join(',')
-      );
+    const candidates = this.page.locator(
+      [
+        'header a[href*="ShoppingCartView" i]:visible',
+        'nav a[href*="ShoppingCartView" i]:visible',
+        'header a[href*="/cart" i]:visible',
+        'nav a[href*="/cart" i]:visible',
+        'header button[aria-label*="shopping cart" i]:visible',
+        'header button[aria-label*="shopping bag" i]:visible',
+        'header a[aria-label*="shopping cart" i]:visible',
+        'header a[aria-label*="shopping bag" i]:visible',
+        'a[href*="ShoppingCartView" i]:visible',
+        'a[href$="/cart" i]:visible',
+        'a[href*="/cart?" i]:visible',
+        '[data-testid*="cart" i][role="button"]:visible',
+        'button[aria-label*="cart" i]:visible',
+        'a[aria-label*="cart" i]:visible',
+        'button[aria-label*="bag" i]:visible',
+        'a[aria-label*="bag" i]:visible',
+      ].join(","),
+    );
 
-    const count =
-      Math.min(
-        await candidates.count(),
-        100
-      );
+    const count = Math.min(await candidates.count(), 100);
 
-    for (
-      let i = 0;
-      i < count;
-      i++
-    ) {
-      const candidate =
-        candidates.nth(i);
+    for (let i = 0; i < count; i++) {
+      const candidate = candidates.nth(i);
 
-      if (
-        !(await candidate
-          .isVisible()
-          .catch(() => false))
-      ) {
+      if (!(await candidate.isVisible().catch(() => false))) {
         continue;
       }
 
-      const text = (
-        await candidate
-          .innerText()
-          .catch(() => '')
-      )
-        .replace(/\s+/g, ' ')
+      const text = (await candidate.innerText().catch(() => ""))
+        .replace(/\s+/g, " ")
         .trim();
 
-      const aria =
-        (await candidate
-          .getAttribute(
-            'aria-label'
-          )) ?? '';
+      const aria = (await candidate.getAttribute("aria-label")) ?? "";
 
-      const title =
-        (await candidate
-          .getAttribute(
-            'title'
-          )) ?? '';
+      const title = (await candidate.getAttribute("title")) ?? "";
 
-      const href =
-        (await candidate
-          .getAttribute(
-            'href'
-          )) ?? '';
+      const href = (await candidate.getAttribute("href")) ?? "";
 
-      const id =
-        (await candidate
-          .getAttribute(
-            'id'
-          )) ?? '';
+      const id = (await candidate.getAttribute("id")) ?? "";
 
       const dataId =
-        (await candidate
-          .getAttribute(
-            'data-cs-override-id'
-          )) ?? '';
+        (await candidate.getAttribute("data-cs-override-id")) ?? "";
 
-      const combined =
-        `${text} ${aria} ${title} ${href} ${id} ${dataId}`
-          .replace(/\s+/g, ' ')
-          .trim();
+      const combined = `${text} ${aria} ${title} ${href} ${id} ${dataId}`
+        .replace(/\s+/g, " ")
+        .trim();
 
       /*
        * Explicitly reject the PDP CTA and any other "Add to Cart"
        * control, even if it satisfies a generic cart selector.
        */
-      if (
-        /add to (cart|bag)|pdp_add_to_cart|add_to_cart/i.test(
-          combined
-        )
-      ) {
+      if (/add to (cart|bag)|pdp_add_to_cart|add_to_cart/i.test(combined)) {
         continue;
       }
 
       if (
         /shoppingcartview|shopping cart|shopping bag|my cart|my bag|view cart|view bag|\/cart(?:\?|$|\/)/i.test(
-          combined
+          combined,
         )
       ) {
         return candidate;
@@ -3125,46 +2285,30 @@ async getCurrentViewport(): Promise<{
   }
 
   private async waitForCartReady(): Promise<void> {
-    await this.page
-      .waitForLoadState(
-        'domcontentloaded'
+    await this.page.waitForLoadState("domcontentloaded").catch(() => undefined);
+
+    await this.page.waitForTimeout(500);
+
+    const ready = await this.page
+      .waitForFunction(
+        () => {
+          const body = document.body?.innerText?.replace(/\s+/g, " ") ?? "";
+
+          const url = window.location.href;
+
+          return (
+            /ShoppingCartView|\/cart(?:\?|$|\/)/i.test(url) ||
+            /shopping cart|shopping bag|your cart is empty|your bag is empty/i.test(
+              body,
+            )
+          );
+        },
+        {
+          timeout: 10000,
+        },
       )
-      .catch(() => undefined);
-
-    await this.page.waitForTimeout(
-      500
-    );
-
-    const ready =
-      await this.page
-        .waitForFunction(
-          () => {
-            const body =
-              document.body
-                ?.innerText
-                ?.replace(
-                  /\s+/g,
-                  ' '
-                ) ?? '';
-
-            const url =
-              window.location.href;
-
-            return (
-              /ShoppingCartView|\/cart(?:\?|$|\/)/i.test(
-                url
-              ) ||
-              /shopping cart|shopping bag|your cart is empty|your bag is empty/i.test(
-                body
-              )
-            );
-          },
-          {
-            timeout: 10000,
-          }
-        )
-        .then(() => true)
-        .catch(() => false);
+      .then(() => true)
+      .catch(() => false);
 
     if (!ready) {
       /*
@@ -3177,70 +2321,44 @@ async getCurrentViewport(): Promise<{
   }
 
   private async findCheckoutByAttributes(): Promise<Locator | null> {
-    const controls =
-      this.page.locator(
-        [
-          'button:visible',
-          'a:visible',
-          '[role="button"]:visible',
-          'input[type="submit"]:visible',
-          'input[type="button"]:visible',
-        ].join(',')
-      );
-
-    const count = Math.min(
-      await controls.count(),
-      200
+    const controls = this.page.locator(
+      [
+        "button:visible",
+        "a:visible",
+        '[role="button"]:visible',
+        'input[type="submit"]:visible',
+        'input[type="button"]:visible',
+      ].join(","),
     );
 
-    for (let i = 0; i < count; i++) {
-      const control =
-        controls.nth(i);
+    const count = Math.min(await controls.count(), 200);
 
-      if (
-        !(await control
-          .isVisible()
-          .catch(() => false))
-      ) {
+    for (let i = 0; i < count; i++) {
+      const control = controls.nth(i);
+
+      if (!(await control.isVisible().catch(() => false))) {
         continue;
       }
 
-      const text = (
-        await control
-          .innerText()
-          .catch(() => '')
-      )
-        .replace(/\s+/g, ' ')
+      const text = (await control.innerText().catch(() => ""))
+        .replace(/\s+/g, " ")
         .trim();
 
-      const value =
-        (await control.getAttribute(
-          'value'
-        )) ?? '';
+      const value = (await control.getAttribute("value")) ?? "";
 
-      const ariaLabel =
-        (await control.getAttribute(
-          'aria-label'
-        )) ?? '';
+      const ariaLabel = (await control.getAttribute("aria-label")) ?? "";
 
-      const title =
-        (await control.getAttribute(
-          'title'
-        )) ?? '';
+      const title = (await control.getAttribute("title")) ?? "";
 
-      const href =
-        (await control.getAttribute(
-          'href'
-        )) ?? '';
+      const href = (await control.getAttribute("href")) ?? "";
 
-      const combined =
-        `${text} ${value} ${ariaLabel} ${title} ${href}`
-          .replace(/\s+/g, ' ')
-          .trim();
+      const combined = `${text} ${value} ${ariaLabel} ${title} ${href}`
+        .replace(/\s+/g, " ")
+        .trim();
 
       if (
         /checkout|singlepagecheckout|proceed.*checkout|secure.*checkout/i.test(
-          combined
+          combined,
         )
       ) {
         return control;
@@ -3251,57 +2369,32 @@ async getCurrentViewport(): Promise<{
   }
 
   private async extractCountFromLocator(
-    locator: Locator
+    locator: Locator,
   ): Promise<number | null> {
-    if (
-      !(await locator
-        .isVisible()
-        .catch(() => false))
-    ) {
+    if (!(await locator.isVisible().catch(() => false))) {
       return null;
     }
 
     const text =
-      (await locator.getAttribute(
-        'aria-label'
-      )) ??
-      (await locator
-        .innerText()
-        .catch(() => ''));
+      (await locator.getAttribute("aria-label")) ??
+      (await locator.innerText().catch(() => ""));
 
-    return this.extractCountFromText(
-      text
-    );
+    return this.extractCountFromText(text);
   }
 
-  private extractCountFromText(
-    text: string
-  ): number | null {
-    const normalized =
-      text
-        .replace(/\s+/g, ' ')
-        .trim();
+  private extractCountFromText(text: string): number | null {
+    const normalized = text.replace(/\s+/g, " ").trim();
 
-    const itemMatch =
-      normalized.match(
-        /(\d+)\s+items?/i
-      );
+    const itemMatch = normalized.match(/(\d+)\s+items?/i);
 
     if (itemMatch) {
-      return Number(
-        itemMatch[1]
-      );
+      return Number(itemMatch[1]);
     }
 
-    const cartMatch =
-      normalized.match(
-        /(?:cart|bag)\s*\(?\s*(\d+)\s*\)?/i
-      );
+    const cartMatch = normalized.match(/(?:cart|bag)\s*\(?\s*(\d+)\s*\)?/i);
 
     if (cartMatch) {
-      return Number(
-        cartMatch[1]
-      );
+      return Number(cartMatch[1]);
     }
 
     /*
@@ -3310,47 +2403,26 @@ async getCurrentViewport(): Promise<{
      * or the cart heading, so accepting a numeric-only value here
      * is safe.
      */
-    const numericOnly =
-      normalized.match(
-        /^\(?\s*(\d+)\s*\)?$/
-      );
+    const numericOnly = normalized.match(/^\(?\s*(\d+)\s*\)?$/);
 
     if (numericOnly) {
-      return Number(
-        numericOnly[1]
-      );
+      return Number(numericOnly[1]);
     }
 
     return null;
   }
 
-  private extractMoneyValue(
-    text: string
-  ): number | null {
-    const normalized =
-      text.replace(/,/g, '');
+  private extractMoneyValue(text: string): number | null {
+    const normalized = text.replace(/,/g, "");
 
-    const matches =
-      normalized.match(
-        /\d+(?:\.\d{1,2})?/g
-      );
+    const matches = normalized.match(/\d+(?:\.\d{1,2})?/g);
 
-    if (
-      !matches ||
-      matches.length === 0
-    ) {
+    if (!matches || matches.length === 0) {
       return null;
     }
 
-    const value =
-      Number(
-        matches[
-          matches.length - 1
-        ]
-      );
+    const value = Number(matches[matches.length - 1]);
 
-    return Number.isNaN(value)
-      ? null
-      : value;
+    return Number.isNaN(value) ? null : value;
   }
 }
