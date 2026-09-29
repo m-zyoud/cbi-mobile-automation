@@ -16,8 +16,8 @@ export const test = base.extend<AndroidFixtures>({
   androidBrowser: async ({}, use) => {
     const browser =
       await chromium.connectOverCDP(
-        'http://127.0.0.1:9222',
-        {
+  'http://127.0.0.1:9223',
+  {
           timeout: 60000,
         }
       );
