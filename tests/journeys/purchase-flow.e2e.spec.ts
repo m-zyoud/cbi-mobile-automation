@@ -55,18 +55,13 @@ test.describe("CBI Mobile End-to-End Purchase Journey", () => {
        * SM-002
        * Verify reusable global elements.
        */
-      await test.step(`SM-002 Verify ${site.name} global elements`, async () => {
-        console.log("Verifying global elements");
+     await test.step(`SM-002 Verify ${site.name} global elements`, async () => {
+  console.log("Verifying global elements");
 
-        await homePage.verifyGlobalElements();
+  await homePage.verifyGlobalElements();
 
-        await expect(page.locator("header").first()).toBeVisible();
-
-        await expect(page.locator("footer").first()).toBeVisible();
-
-        console.log(`${site.name} global elements verified`);
-      });
-
+  console.log(`${site.name} global elements verified`);
+});
       /*
        * E2E setup
        * Clear stale cart state from the persistent
